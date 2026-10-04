@@ -67,11 +67,11 @@ DMOD_TEST_STEP(dmvsi_converts_a_file_with_the_converter_of_its_extension)
     DMOD_TEST_EXPECT_TRUE(fill != NULL && fill->kind == DMVSI_NODE_RECT);
     DMOD_TEST_EXPECT_EQ(fill->u.fill.paint.color, 0xFF2B5876u);
 
-    /* A group without a clip is as large as what is in it */
+    /* A group without a clip is as large as what is in it and the rectangle it was given */
     const dmvsi_node_t* group = fill->next;
     DMOD_TEST_EXPECT_TRUE(group != NULL && group->kind == DMVSI_NODE_GROUP);
     DMOD_TEST_EXPECT_EQ(group->u.group.opacity, 128);
-    DMOD_TEST_EXPECT_TRUE(rect_is(&group->u.group.rect, 16, 24, 54, 44));
+    DMOD_TEST_EXPECT_TRUE(rect_is(&group->u.group.rect, 10, 20, 100, 50));
     DMOD_TEST_EXPECT_TRUE(group->first != NULL && group->first->u.fill.radius == DMVSI_PX(4));
 
     /* The text, measured: Inter's ascent at 16 px is 16, its descent 4 */
@@ -186,4 +186,47 @@ DMOD_TEST_STEP(dmvsi_checks_what_is_added)
     DMOD_TEST_EXPECT_TRUE(rect_is(&g->bounds, 0, 0, 5, 5));
     dmvsi_free(doc);
     dmvsi_free(NULL);
+}
+
+DMOD_TEST_STEP(dmvsi_describes_behaviour)
+{
+    dmvsi_doc_t doc = dmvsi_new();
+    dmvsi_group_t group;
+    memset(&group, 0, sizeof(group));
+    group.opacity = 255;
+    DMOD_TEST_EXPECT_EQ(dmvsi_set_view(doc, "v", 100, 100), 0);
+    dmvsi_var_t y = dmvsi_add_var(doc, "window-y", DMVSI_PX(100));
+    dmvsi_var_t y2 = dmvsi_add_var(doc, "window-y", 0);
+    DMOD_TEST_EXPECT_TRUE(y == 1 && y2 == 2);
+    const char* name = NULL;
+    int32_t initial = 0;
+    DMOD_TEST_EXPECT_TRUE(dmvsi_var_at(doc, 0, &name, &initial) && strcmp(name, "window_y") == 0 && initial == DMVSI_PX(100));
+    DMOD_TEST_EXPECT_TRUE(dmvsi_var_at(doc, 1, &name, NULL) && strcmp(name, "window_y_2") == 0);
+    DMOD_TEST_EXPECT_FALSE(dmvsi_var_at(doc, 2, &name, NULL));
+
+    DMOD_TEST_EXPECT_EQ(dmvsi_bind(doc, DMVSI_BIND_Y, y), -EINVAL);       /* the root */
+    DMOD_TEST_EXPECT_EQ(dmvsi_begin_group(doc, &group), 0);
+    DMOD_TEST_EXPECT_EQ(dmvsi_bind(doc, DMVSI_BIND_Y, y), 0);
+    DMOD_TEST_EXPECT_EQ(dmvsi_bind(doc, DMVSI_BIND_X, y), -EINVAL);       /* bound already */
+
+    dmvsi_action_t open[3];
+    memset(open, 0, sizeof(open));
+    open[0].kind = DMVSI_ACT_IF_EQ;
+    open[0].var = y2;
+    open[1].kind = DMVSI_ACT_ANIMATE;
+    open[1].var = y;
+    open[1].duration = 300;
+    open[2].kind = DMVSI_ACT_END;
+    DMOD_TEST_EXPECT_EQ(dmvsi_add_handler(doc, open, 2), 0);              /* an IF without its END */
+    dmvsi_handler_t h = dmvsi_add_handler(doc, open, 3);
+    DMOD_TEST_EXPECT_EQ(h, 1);
+    DMOD_TEST_EXPECT_EQ(dmvsi_on_click(doc, h), 0);
+    DMOD_TEST_EXPECT_EQ(dmvsi_end_group(doc), 0);
+
+    const dmvsi_node_t* g = dmvsi_root(doc)->first;
+    DMOD_TEST_EXPECT_TRUE(g != NULL && g->bind[DMVSI_BIND_Y] == y && g->bind[DMVSI_BIND_X] == 0 && g->click == h);
+    const dmvsi_action_t* actions = NULL;
+    DMOD_TEST_EXPECT_EQ(dmvsi_handler_actions(doc, h, &actions), 3u);
+    DMOD_TEST_EXPECT_TRUE(actions != NULL && actions[1].kind == DMVSI_ACT_ANIMATE && actions[1].duration == 300);
+    dmvsi_free(doc);
 }

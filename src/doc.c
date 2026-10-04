@@ -83,6 +83,10 @@ void doc_free(dmvsi_doc_t doc)
         Dmod_Free(n);
     }
     fonts_free(doc);
+    for (uint32_t i = 0; i < doc->handler_count; i++)
+        Dmod_Free(doc->handlers[i].actions);
+    Dmod_Free(doc->handlers);
+    Dmod_Free(doc->vars);
     Dmod_Free(doc->name);
     doc->magic = 0;
     Dmod_Free(doc);
@@ -159,7 +163,7 @@ int doc_end_group(dmvsi_doc_t doc)
         return -EINVAL;
     if ((n->pub.u.group.flags & DMVSI_GROUP_CLIP) == 0)
     {
-        dmvsi_rect_t bounds = { 0, 0, 0, 0 };
+        dmvsi_rect_t bounds = n->pub.u.group.rect;      /* At least the rectangle it was given */
         for (const dmvsi_node_t* c = n->pub.first; c != NULL; c = c->next)
             rect_union(&bounds, &c->bounds);
         n->pub.u.group.rect = bounds;
@@ -253,5 +257,107 @@ int doc_add(dmvsi_doc_t doc, uint8_t kind, const void* shape)
         default:
             return -EINVAL;
     }
+    return 0;
+}
+
+/* ---- Behaviour ---- */
+
+/* Grown to hold one more of `size` bytes each */
+static bool grow(void** items, uint32_t count, uint32_t* capacity, size_t size)
+{
+    if (count < *capacity)
+        return true;
+    uint32_t n = (*capacity == 0) ? 8U : *capacity * 2U;
+    void* p = Dmod_Malloc(n * size);
+    if (p == NULL)
+        return false;
+    if (count != 0)
+        memcpy(p, *items, count * size);
+    Dmod_Free(*items);
+    *items = p;
+    *capacity = n;
+    return true;
+}
+
+static bool var_named(const dmvsi_doc_t doc, const char* name)
+{
+    for (uint32_t i = 0; i < doc->var_count; i++)
+    {
+        if (strcmp(doc->vars[i].name, name) == 0)
+            return true;
+    }
+    return false;
+}
+
+dmvsi_var_t doc_add_var(dmvsi_doc_t doc, const char* name, int32_t initial)
+{
+    char base[MAX_VAR_NAME - 6U];
+    size_t n = 0;
+    if (doc->var_count >= 0xFFFEu || !grow((void**)&doc->vars, doc->var_count, &doc->var_capacity, sizeof(var_t)))
+        return 0;
+    for (const char* s = (name != NULL) ? name : "v"; *s != '\0' && n + 1U < sizeof(base); s++)
+    {
+        char c = *s;
+        bool ok = (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') || (c >= '0' && c <= '9') || c == '_';
+        if (n == 0 && c >= '0' && c <= '9')
+            base[n++] = 'v';
+        base[n++] = ok ? c : '_';
+    }
+    base[n] = '\0';
+    if (n == 0)
+        strcpy(base, "v");
+    var_t* v = &doc->vars[doc->var_count];
+    memset(v, 0, sizeof(*v));
+    strcpy(v->name, base);
+    for (uint32_t k = 2; var_named(doc, v->name); k++)
+        Dmod_SnPrintf(v->name, sizeof(v->name), "%s_%u", base, (unsigned)k);
+    v->initial = initial;
+    doc->var_count++;
+    return (dmvsi_var_t)doc->var_count;
+}
+
+int doc_bind(dmvsi_doc_t doc, uint8_t what, dmvsi_var_t var)
+{
+    node_t* g = doc->current;
+    if (g == NULL || g == doc->root || what >= DMVSI_BIND_COUNT || var == 0 || var > doc->var_count ||
+        doc->vars[var - 1U].bound)
+        return -EINVAL;
+    doc->vars[var - 1U].bound = true;
+    g->pub.bind[what] = var;
+    return 0;
+}
+
+dmvsi_handler_t doc_add_handler(dmvsi_doc_t doc, const dmvsi_action_t* actions, uint32_t count)
+{
+    int32_t depth = 0;
+    for (uint32_t i = 0; i < count; i++)
+    {
+        const dmvsi_action_t* a = &actions[i];
+        if (a->kind > DMVSI_ACT_END || (a->kind != DMVSI_ACT_END && (a->var == 0 || a->var > doc->var_count)))
+            return 0;
+        depth += (a->kind == DMVSI_ACT_IF_EQ || a->kind == DMVSI_ACT_IF_NE) ? 1 : (a->kind == DMVSI_ACT_END) ? -1 : 0;
+        if (depth < 0)
+            return 0;
+    }
+    if (depth != 0 || doc->handler_count >= 0xFFFEu ||
+        !grow((void**)&doc->handlers, doc->handler_count, &doc->handler_capacity, sizeof(handler_t)))
+        return 0;
+    handler_t* h = &doc->handlers[doc->handler_count];
+    h->actions = (count > 0) ? Dmod_Malloc(count * sizeof(dmvsi_action_t)) : NULL;
+    if (count > 0 && h->actions == NULL)
+        return 0;
+    if (count > 0)
+        memcpy(h->actions, actions, count * sizeof(dmvsi_action_t));
+    h->count = count;
+    doc->handler_count++;
+    return (dmvsi_handler_t)doc->handler_count;
+}
+
+int doc_on_click(dmvsi_doc_t doc, dmvsi_handler_t handler)
+{
+    node_t* g = doc->current;
+    if (g == NULL || g == doc->root || handler == 0 || handler > doc->handler_count)
+        return -EINVAL;
+    g->pub.click = handler;
     return 0;
 }

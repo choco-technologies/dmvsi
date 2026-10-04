@@ -274,6 +274,47 @@ dmod_dmvsi_api_declaration(1.0, uint32_t, _utf8_next, ( const char** p, const ch
     return (p != NULL && *p != NULL && *p < end) ? utf8_next(p, end) : 0;
 }
 
+dmod_dmvsi_api_declaration(1.0, dmvsi_var_t, _add_var, ( dmvsi_doc_t doc, const char* name, int32_t initial ))
+{
+    return doc_valid(doc) ? doc_add_var(doc, name, initial) : 0;
+}
+
+dmod_dmvsi_api_declaration(1.0, int, _bind, ( dmvsi_doc_t doc, uint8_t what, dmvsi_var_t var ))
+{
+    return doc_valid(doc) ? doc_bind(doc, what, var) : -EINVAL;
+}
+
+dmod_dmvsi_api_declaration(1.0, dmvsi_handler_t, _add_handler, ( dmvsi_doc_t doc, const dmvsi_action_t* actions, uint32_t count ))
+{
+    return (doc_valid(doc) && (actions != NULL || count == 0)) ? doc_add_handler(doc, actions, count) : 0;
+}
+
+dmod_dmvsi_api_declaration(1.0, int, _on_click, ( dmvsi_doc_t doc, dmvsi_handler_t handler ))
+{
+    return doc_valid(doc) ? doc_on_click(doc, handler) : -EINVAL;
+}
+
+dmod_dmvsi_api_declaration(1.0, bool, _var_at, ( dmvsi_doc_t doc, uint32_t index, const char** name, int32_t* initial ))
+{
+    if (!doc_valid(doc) || index >= doc->var_count)
+        return false;
+    if (name != NULL)
+        *name = doc->vars[index].name;
+    if (initial != NULL)
+        *initial = doc->vars[index].initial;
+    return true;
+}
+
+dmod_dmvsi_api_declaration(1.0, uint32_t, _handler_actions, ( dmvsi_doc_t doc, dmvsi_handler_t handler, const dmvsi_action_t** actions ))
+{
+    static const dmvsi_action_t none[1];
+    if (!doc_valid(doc) || handler == 0 || handler > doc->handler_count || actions == NULL)
+        return 0;
+    /* A handler without actions: not NULL, so it tells from none */
+    *actions = (doc->handlers[handler - 1U].count > 0) ? doc->handlers[handler - 1U].actions : none;
+    return doc->handlers[handler - 1U].count;
+}
+
 /* ---- Module ---- */
 
 int dmod_init(const Dmod_Config_t* Config)

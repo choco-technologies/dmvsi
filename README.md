@@ -21,6 +21,9 @@ A converter lays its page out and describes what it looks like in a
   with a color or a linear / radial gradient), outlines, shadows (blurred,
   outer or inset - also a blurred element), lines of text, images.
 
+- **behaviour**: variables, groups bound to them (their position, their
+  opacity), handlers of clicks that set or animate them.
+
 Everything is at absolute positions, in 1/64 pixel. How a document becomes
 dmview assembly - which group needs a box, how a shadow is painted - is the
 writer's, [libtodmvs](https://github.com/choco-technologies/todmvs): every
