@@ -221,10 +221,14 @@ DMOD_TEST_STEP(dmvsi_describes_behaviour)
     dmvsi_handler_t h = dmvsi_add_handler(doc, open, 3);
     DMOD_TEST_EXPECT_EQ(h, 1);
     DMOD_TEST_EXPECT_EQ(dmvsi_on_click(doc, h), 0);
+    DMOD_TEST_EXPECT_EQ(dmvsi_show_when(doc, y2, 1), 0);
+    DMOD_TEST_EXPECT_EQ(dmvsi_show_when(doc, DMVSI_VAR_PRESSED, 0), 0);
+    DMOD_TEST_EXPECT_EQ(dmvsi_show_when(doc, y2, 2), -EINVAL);           /* two at most */
     DMOD_TEST_EXPECT_EQ(dmvsi_end_group(doc), 0);
 
     const dmvsi_node_t* g = dmvsi_root(doc)->first;
     DMOD_TEST_EXPECT_TRUE(g != NULL && g->bind[DMVSI_BIND_Y] == y && g->bind[DMVSI_BIND_X] == 0 && g->click == h);
+    DMOD_TEST_EXPECT_TRUE(g != NULL && g->show_var[0] == y2 && g->show_value[0] == 1 && g->show_var[1] == DMVSI_VAR_PRESSED);
     const dmvsi_action_t* actions = NULL;
     DMOD_TEST_EXPECT_EQ(dmvsi_handler_actions(doc, h, &actions), 3u);
     DMOD_TEST_EXPECT_TRUE(actions != NULL && actions[1].kind == DMVSI_ACT_ANIMATE && actions[1].duration == 300);

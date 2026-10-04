@@ -116,6 +116,12 @@ typedef uint16_t dmvsi_var_t;
 #define DMVSI_BIND_OPACITY      2u      /**< Its opacity, 0 ... 255 */
 #define DMVSI_BIND_COUNT        3u
 
+/** The variable of whether the box a group is in is pressed (dmview's $box.pressed): 1 while it is */
+#define DMVSI_VAR_PRESSED       0xFFFFu
+
+/** Conditions of a group being shown (dmvsi_show_when()), at most */
+#define DMVSI_MAX_SHOW          2u
+
 /** A handler of the document: 1 ...; 0 is none. */
 typedef uint16_t dmvsi_handler_t;
 
@@ -235,6 +241,8 @@ struct dmvsi_node
     dmvsi_rect_t        bounds;     /**< What the node paints (a shadow: all of its blur), as a whole */
     dmvsi_var_t         bind[DMVSI_BIND_COUNT];     /**< A group: the variables it is bound to (0: none) */
     dmvsi_handler_t     click;      /**< A group: run when it is clicked (0: none) */
+    dmvsi_var_t         show_var[DMVSI_MAX_SHOW];   /**< A group: shown only while each var == show_value (0: no condition) */
+    int32_t             show_value[DMVSI_MAX_SHOW];
 };
 
 /* ---- Options ---- */
@@ -351,6 +359,15 @@ dmod_dmvsi_api(1.0, int, _bind, ( dmvsi_doc_t doc, uint8_t what, dmvsi_var_t var
  * @return The handler, 0 on failure (-EINVAL: an IF without its END)
  */
 dmod_dmvsi_api(1.0, dmvsi_handler_t, _add_handler, ( dmvsi_doc_t doc, const dmvsi_action_t* actions, uint32_t count ));
+
+/**
+ * @brief Show the innermost open group only while a variable has a value -
+ *        also DMVSI_VAR_PRESSED, whether the box it is in is pressed. Up to
+ *        DMVSI_MAX_SHOW conditions, all of them hold. Its variants of an
+ *        element (one per state) are groups shown on their conditions.
+ * @return 0, -EINVAL
+ */
+dmod_dmvsi_api(1.0, int, _show_when, ( dmvsi_doc_t doc, dmvsi_var_t var, int32_t value ));
 
 /** @brief Run a handler when the innermost open group is clicked. @return 0, -EINVAL */
 dmod_dmvsi_api(1.0, int, _on_click, ( dmvsi_doc_t doc, dmvsi_handler_t handler ));
