@@ -43,6 +43,21 @@ struct node
     node_t*         last;               /* A group's last node */
 };
 
+#define MAX_VAR_NAME    32u
+
+typedef struct
+{
+    char            name[MAX_VAR_NAME];
+    int32_t         initial;
+    bool            bound;
+} var_t;
+
+typedef struct
+{
+    dmvsi_action_t* actions;
+    uint32_t        count;
+} handler_t;
+
 struct dmvsi_doc
 {
     uint32_t        magic;
@@ -55,6 +70,12 @@ struct dmvsi_doc
     dmvsi_font_t    fonts;
     face_t*         faces;
     Dmod_Context_t* converter;
+    var_t*          vars;
+    uint32_t        var_count;
+    uint32_t        var_capacity;
+    handler_t*      handlers;
+    uint32_t        handler_count;
+    uint32_t        handler_capacity;
 };
 
 #define DOC_MAGIC       0x44535649u     /* 'IVSD' */
@@ -79,5 +100,9 @@ int             doc_set_view(dmvsi_doc_t doc, const char* name, uint16_t width, 
 int             doc_begin_group(dmvsi_doc_t doc, const dmvsi_group_t* group);
 int             doc_end_group(dmvsi_doc_t doc);
 int             doc_add(dmvsi_doc_t doc, uint8_t kind, const void* shape);
+dmvsi_var_t     doc_add_var(dmvsi_doc_t doc, const char* name, int32_t initial);
+int             doc_bind(dmvsi_doc_t doc, uint8_t what, dmvsi_var_t var);
+dmvsi_handler_t doc_add_handler(dmvsi_doc_t doc, const dmvsi_action_t* actions, uint32_t count);
+int             doc_on_click(dmvsi_doc_t doc, dmvsi_handler_t handler);
 
 #endif /* DMVSI_PRIVATE_H */

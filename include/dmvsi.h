@@ -31,6 +31,12 @@ extern "C" {
  * Text is measured with the fonts of the document (dmvsi_font()) - the same
  * way todmvf makes them, so the view's text is as wide as the layout made
  * room for.
+ *
+ * What a page does when it is used - a converter that understands it (a
+ * script that switches screens) - is variables, groups bound to them (their
+ * position, their opacity) and handlers of clicks: actions that set the
+ * variables or animate them. The writer makes them the view's variables,
+ * BOX operands and handlers.
  */
 
 /* ---- Units ---- */
@@ -101,6 +107,35 @@ typedef struct
 
 typedef struct dmvsi_doc* dmvsi_doc_t;
 
+/** A variable of the document: 1 ...; 0 is none. */
+typedef uint16_t dmvsi_var_t;
+
+/** What of a group a variable is (dmvsi_bind()) */
+#define DMVSI_BIND_X            0u      /**< Its rectangle's x: the variable is a position on the screen, in units */
+#define DMVSI_BIND_Y            1u      /**< Its rectangle's y */
+#define DMVSI_BIND_OPACITY      2u      /**< Its opacity, 0 ... 255 */
+#define DMVSI_BIND_COUNT        3u
+
+/** A handler of the document: 1 ...; 0 is none. */
+typedef uint16_t dmvsi_handler_t;
+
+#define DMVSI_ACT_SET           0u      /**< var = value */
+#define DMVSI_ACT_ANIMATE       1u      /**< var goes to value in `duration` ms, eased by `easing` */
+#define DMVSI_ACT_TOGGLE        2u      /**< var = (var == 0) ? 1 : 0 */
+#define DMVSI_ACT_IF_EQ         3u      /**< The actions up to the matching DMVSI_ACT_END only when var == value */
+#define DMVSI_ACT_IF_NE         4u      /**< ... only when var != value */
+#define DMVSI_ACT_END           5u      /**< The end of an IF */
+
+/** One action of a handler */
+typedef struct
+{
+    uint8_t         kind;           /**< DMVSI_ACT_* */
+    dmvsi_var_t     var;
+    int32_t         value;          /**< A position (of a variable bound to X / Y) in units, an opacity, a number */
+    uint16_t        duration;       /**< ANIMATE: milliseconds */
+    int16_t         easing[4];      /**< ANIMATE: cubic-bezier(x1, y1, x2, y2), 1/1000 (CSS's) */
+} dmvsi_action_t;
+
 #define DMVSI_NODE_GROUP        0u      /**< Holds other nodes */
 #define DMVSI_NODE_RECT         1u      /**< A filled, optionally rounded rectangle */
 #define DMVSI_NODE_FRAME        2u      /**< A rectangle's outline */
@@ -117,7 +152,7 @@ typedef struct dmvsi_doc* dmvsi_doc_t;
 /** A group: what is in it is clipped to `rect`, faded, scrolled. */
 typedef struct
 {
-    dmvsi_rect_t    rect;           /**< Clip; without DMVSI_GROUP_CLIP computed by dmvsi_end_group(): what is in it */
+    dmvsi_rect_t    rect;           /**< Clip; without DMVSI_GROUP_CLIP computed by dmvsi_end_group(): what is in it (and rect) */
     uint8_t         flags;          /**< DMVSI_GROUP_* */
     uint8_t         opacity;        /**< 255: opaque */
     dmvsi_unit_t    scroll_w;       /**< Scrollable content of this size (> rect), 0: none */
@@ -198,6 +233,8 @@ struct dmvsi_node
         dmvsi_image_t   image;      /**< `path` is the document's copy */
     } u;
     dmvsi_rect_t        bounds;     /**< What the node paints (a shadow: all of its blur), as a whole */
+    dmvsi_var_t         bind[DMVSI_BIND_COUNT];     /**< A group: the variables it is bound to (0: none) */
+    dmvsi_handler_t     click;      /**< A group: run when it is clicked (0: none) */
 };
 
 /* ---- Options ---- */
@@ -290,6 +327,39 @@ dmod_dmvsi_api(1.0, int, _add_text, ( dmvsi_doc_t doc, const dmvsi_text_t* text 
 
 /** @brief Add an image (its path copied). @return 0, -ENOMEM, -EINVAL */
 dmod_dmvsi_api(1.0, int, _add_image, ( dmvsi_doc_t doc, const dmvsi_image_t* image ));
+
+/* ---- API - behaviour ---- */
+
+/**
+ * @brief A variable of the document (an integer), its name for the view (letters,
+ *        digits, '_'; unique - made so with a number when it is not).
+ * @return The variable, 0 on failure
+ */
+dmod_dmvsi_api(1.0, dmvsi_var_t, _add_var, ( dmvsi_doc_t doc, const char* name, int32_t initial ));
+
+/**
+ * @brief Bind the innermost open group's position or opacity to a variable
+ *        (DMVSI_BIND_*): the group is where (or as opaque as) the variable
+ *        says. A variable is bound to one group at most. A bound group is
+ *        kept even while it is off the screen.
+ * @return 0, -EINVAL
+ */
+dmod_dmvsi_api(1.0, int, _bind, ( dmvsi_doc_t doc, uint8_t what, dmvsi_var_t var ));
+
+/**
+ * @brief A handler: actions run in order (DMVSI_ACT_*; IF ... END nest).
+ * @return The handler, 0 on failure (-EINVAL: an IF without its END)
+ */
+dmod_dmvsi_api(1.0, dmvsi_handler_t, _add_handler, ( dmvsi_doc_t doc, const dmvsi_action_t* actions, uint32_t count ));
+
+/** @brief Run a handler when the innermost open group is clicked. @return 0, -EINVAL */
+dmod_dmvsi_api(1.0, int, _on_click, ( dmvsi_doc_t doc, dmvsi_handler_t handler ));
+
+/** @brief The variables: the @p index -th (0 ...), false past the last. */
+dmod_dmvsi_api(1.0, bool, _var_at, ( dmvsi_doc_t doc, uint32_t index, const char** name, int32_t* initial ));
+
+/** @brief A handler's actions. @return Their number; *actions stays NULL for no such handler */
+dmod_dmvsi_api(1.0, uint32_t, _handler_actions, ( dmvsi_doc_t doc, dmvsi_handler_t handler, const dmvsi_action_t** actions ));
 
 /* ---- API - fonts ---- */
 
