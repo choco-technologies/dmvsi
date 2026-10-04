@@ -104,5 +104,6 @@ dmvsi_var_t     doc_add_var(dmvsi_doc_t doc, const char* name, int32_t initial);
 int             doc_bind(dmvsi_doc_t doc, uint8_t what, dmvsi_var_t var);
 dmvsi_handler_t doc_add_handler(dmvsi_doc_t doc, const dmvsi_action_t* actions, uint32_t count);
 int             doc_on_click(dmvsi_doc_t doc, dmvsi_handler_t handler);
+int             doc_show_when(dmvsi_doc_t doc, dmvsi_var_t var, int32_t value);
 
 #endif /* DMVSI_PRIVATE_H */

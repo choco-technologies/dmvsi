@@ -294,6 +294,11 @@ dmod_dmvsi_api_declaration(1.0, int, _on_click, ( dmvsi_doc_t doc, dmvsi_handler
     return doc_valid(doc) ? doc_on_click(doc, handler) : -EINVAL;
 }
 
+dmod_dmvsi_api_declaration(1.0, int, _show_when, ( dmvsi_doc_t doc, dmvsi_var_t var, int32_t value ))
+{
+    return doc_valid(doc) ? doc_show_when(doc, var, value) : -EINVAL;
+}
+
 dmod_dmvsi_api_declaration(1.0, bool, _var_at, ( dmvsi_doc_t doc, uint32_t index, const char** name, int32_t* initial ))
 {
     if (!doc_valid(doc) || index >= doc->var_count)

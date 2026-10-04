@@ -56,6 +56,7 @@ is variables, groups bound to them and handlers of clicks:
 | `dmvsi_var_t dmvsi_add_var(doc, name, initial)` | An integer variable (its name made an identifier, unique) |
 | `dmvsi_bind(doc, what, var)` | The innermost open group's `DMVSI_BIND_X` / `_Y` (a position on the screen, in units - the group's rectangle's) or `_OPACITY` (0 ... 255) is the variable's value. A bound group is kept while it is off the screen |
 | `dmvsi_handler_t dmvsi_add_handler(doc, actions, count)` | A handler: `DMVSI_ACT_SET`, `_ANIMATE` (to `value` in `duration` ms, eased by a CSS `cubic-bezier`, 1/1000), `_TOGGLE`, `_IF_EQ` / `_IF_NE` ... `_END` |
+| `dmvsi_show_when(doc, var, value)` | Show the innermost open group only while `var == value` - also `DMVSI_VAR_PRESSED`, whether the box it is in is pressed; up to `DMVSI_MAX_SHOW`, all hold. An element's looks (one per state) are groups shown on their conditions |
 | `dmvsi_on_click(doc, handler)` | Run it when the innermost open group is clicked (its rectangle: at least the one it was given) |
 | `dmvsi_var_at(doc, i, &name, &initial)`, `dmvsi_handler_actions(doc, h, &actions)` | Reading them (writers); a group node's `bind[]` and `click` |
 

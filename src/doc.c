@@ -361,3 +361,20 @@ int doc_on_click(dmvsi_doc_t doc, dmvsi_handler_t handler)
     g->pub.click = handler;
     return 0;
 }
+
+int doc_show_when(dmvsi_doc_t doc, dmvsi_var_t var, int32_t value)
+{
+    node_t* g = doc->current;
+    if (g == NULL || g == doc->root || var == 0 || (var != DMVSI_VAR_PRESSED && var > doc->var_count))
+        return -EINVAL;
+    for (uint32_t i = 0; i < DMVSI_MAX_SHOW; i++)
+    {
+        if (g->pub.show_var[i] == 0)
+        {
+            g->pub.show_var[i] = var;
+            g->pub.show_value[i] = value;
+            return 0;
+        }
+    }
+    return -EINVAL;
+}
