@@ -52,7 +52,8 @@ static bool paint_valid(const dmvsi_paint_t* p)
 {
     if (p->kind == DMVSI_PAINT_COLOR)
         return true;
-    if (p->kind > DMVSI_PAINT_RADIAL || p->count < 2U || p->count > DMVSI_MAX_STOPS)
+    if (p->kind > DMVSI_PAINT_RADIAL || p->count < 2U || p->count > DMVSI_MAX_STOPS ||
+        (p->kind == DMVSI_PAINT_RADIAL && (p->rx <= 0 || p->ry <= 0)))
         return false;
     for (uint32_t i = 1; i < p->count; i++)
     {

@@ -53,7 +53,7 @@ typedef int32_t dmvsi_unit_t;
 #define DMVSI_MAX_STOPS         16u
 
 /** Position of a gradient stop or of a radial gradient's geometry: 1/100 % (10000: 100 %). */
-#define DMVSI_PERCENT(n)        ((uint16_t)((n) * 100))
+#define DMVSI_PERCENT(n)        ((n) * 100)
 
 typedef struct
 {
@@ -70,8 +70,8 @@ typedef struct
     uint8_t         kind;           /**< DMVSI_PAINT_* */
     uint8_t         count;          /**< Gradient: number of stops, 2 ... DMVSI_MAX_STOPS */
     int16_t         angle;          /**< Linear: degrees, 0 up, 90 right, 180 down (CSS) */
-    uint16_t        cx, cy;         /**< Radial: center, 1/100 % of the shape's width / height */
-    uint16_t        rx, ry;         /**< Radial: radii, 1/100 % of the shape's width / height */
+    int32_t         cx, cy;         /**< Radial: center, 1/100 % of the shape's width / height (also outside it) */
+    int32_t         rx, ry;         /**< Radial: radii, 1/100 % of the shape's width / height, > 0 */
     uint32_t        color;          /**< Color */
     dmvsi_stop_t    stops[DMVSI_MAX_STOPS];
 } dmvsi_paint_t;
