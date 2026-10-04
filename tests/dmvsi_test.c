@@ -1,12 +1,189 @@
 #define DMOD_ENABLE_REGISTRATION ON
 #include "dmod_test.h"
+#include "dmvsi.h"
+#include <errno.h>
+#include <string.h>
 
-/* Optional lifecycle hooks */
-// void dmod_test_setup(void)    { /* reset state */ }
-// void dmod_test_teardown(void) { /* cleanup    */ }
+/*
+ * dmvsi with the test converter dmvs_tsrc (tsrc/): "TSRC" files, a line per
+ * shape. dmvsi_convert_file() loads the converter by the extension the
+ * first time. The fonts are measured against what todmvf makes of them:
+ * the widths below are the sums of the advances in its .dmvf files
+ * (todmvf Inter-Regular.otf 16; ... 11 -t -0.55).
+ */
 
-DMOD_TEST_STEP(example)
+#ifndef DMVSI_TEST_DIR
+#define DMVSI_TEST_DIR      "."
+#endif
+#ifndef DMVSI_TEST_FONTS
+#define DMVSI_TEST_FONTS    "fonts"
+#endif
+#define TEST_FILE(name)     DMVSI_TEST_DIR "/" name
+#define INTER               DMVSI_TEST_FONTS "/Inter-Regular.otf"
+
+static bool write_file(const char* path, const char* text)
 {
-    /* Replace with real assertions once the module has behavior to test. */
-    DMOD_TEST_EXPECT_TRUE(1);
+    void* f = Dmod_FileOpen(path, "wb");
+    if (f == NULL)
+        return false;
+    bool ok = Dmod_FileWrite(text, 1, strlen(text), f) == strlen(text);
+    Dmod_FileClose(f);
+    return ok;
+}
+
+static bool rect_is(const dmvsi_rect_t* r, int32_t x, int32_t y, int32_t w, int32_t h)
+{
+    return r->x == DMVSI_PX(x) && r->y == DMVSI_PX(y) && r->w == DMVSI_PX(w) && r->h == DMVSI_PX(h);
+}
+
+DMOD_TEST_STEP(dmvsi_converts_a_file_with_the_converter_of_its_extension)
+{
+    int status = -1;
+    DMOD_TEST_EXPECT_TRUE(write_file(TEST_FILE("a.TSRC"),
+        "TSRC demo 272 480\n"
+        "fill 0 0 272 480 0 FF2B5876\n"
+        "group 10 20 100 50 0 128\n"
+        "fill 16 24 20 20 4 80FFFFFF\n"
+        "fill 40 60 30 8 0 FF000000\n"
+        "end\n"
+        "text 8 30 16 " INTER " Hello, dmod!\n"));
+
+    dmvsi_doc_t doc = dmvsi_convert_file(TEST_FILE("a.TSRC"), NULL, &status);
+    DMOD_TEST_EXPECT_TRUE(doc != NULL);
+    if (doc == NULL)
+        return;
+    DMOD_TEST_EXPECT_EQ(status, 0);
+    DMOD_TEST_EXPECT_TRUE(strcmp(dmvsi_converter_name(doc), "dmvs_tsrc") == 0);
+    DMOD_TEST_EXPECT_TRUE(strcmp(dmvsi_view_name(doc), "demo") == 0);
+    uint16_t w = 0, h = 0;
+    DMOD_TEST_EXPECT_EQ(dmvsi_view_size(doc, &w, &h), 0);
+    DMOD_TEST_EXPECT_EQ(w, 272);
+    DMOD_TEST_EXPECT_EQ(h, 480);
+
+    const dmvsi_node_t* root = dmvsi_root(doc);
+    DMOD_TEST_EXPECT_TRUE(root != NULL && root->kind == DMVSI_NODE_GROUP);
+    DMOD_TEST_EXPECT_TRUE(rect_is(&root->u.group.rect, 0, 0, 272, 480));
+    const dmvsi_node_t* fill = root->first;
+    DMOD_TEST_EXPECT_TRUE(fill != NULL && fill->kind == DMVSI_NODE_RECT);
+    DMOD_TEST_EXPECT_EQ(fill->u.fill.paint.color, 0xFF2B5876u);
+
+    /* A group without a clip is as large as what is in it */
+    const dmvsi_node_t* group = fill->next;
+    DMOD_TEST_EXPECT_TRUE(group != NULL && group->kind == DMVSI_NODE_GROUP);
+    DMOD_TEST_EXPECT_EQ(group->u.group.opacity, 128);
+    DMOD_TEST_EXPECT_TRUE(rect_is(&group->u.group.rect, 16, 24, 54, 44));
+    DMOD_TEST_EXPECT_TRUE(group->first != NULL && group->first->u.fill.radius == DMVSI_PX(4));
+
+    /* The text, measured: Inter's ascent at 16 px is 16, its descent 4 */
+    const dmvsi_node_t* text = group->next;
+    DMOD_TEST_EXPECT_TRUE(text != NULL && text->kind == DMVSI_NODE_TEXT);
+    DMOD_TEST_EXPECT_TRUE(strcmp(text->u.text.text, "Hello, dmod!") == 0);
+    DMOD_TEST_EXPECT_TRUE(rect_is(&text->bounds, 8, 14, 98, 20));
+    DMOD_TEST_EXPECT_TRUE(text->next == NULL);
+
+    /* The characters of the font, increasing */
+    dmvsi_font_t font = dmvsi_font_at(doc, 0);
+    uint32_t c = 0;
+    DMOD_TEST_EXPECT_TRUE(font != NULL && dmvsi_font_at(doc, 1) == NULL);
+    DMOD_TEST_EXPECT_TRUE(dmvsi_font_char(font, 0, &c) && c == ' ');
+    DMOD_TEST_EXPECT_TRUE(dmvsi_font_char(font, 1, &c) && c == '!');
+    DMOD_TEST_EXPECT_TRUE(dmvsi_font_char(font, 8, &c) && c == 'o');
+    DMOD_TEST_EXPECT_FALSE(dmvsi_font_char(font, 9, &c));
+    dmvsi_free(doc);
+}
+
+DMOD_TEST_STEP(dmvsi_reports_files_nobody_converts)
+{
+    int status = 0;
+    DMOD_TEST_EXPECT_TRUE(write_file(TEST_FILE("b.tsrc"), "TSRX demo 10 10\n"));
+    DMOD_TEST_EXPECT_TRUE(dmvsi_convert_file(TEST_FILE("b.tsrc"), NULL, &status) == NULL);
+    DMOD_TEST_EXPECT_EQ(status, -ENOTSUP);
+    DMOD_TEST_EXPECT_TRUE(dmvsi_convert_file(TEST_FILE("missing.tsrc"), NULL, &status) == NULL);
+    DMOD_TEST_EXPECT_EQ(status, -ENOENT);
+
+    /* A converter's error: a line it does not know */
+    DMOD_TEST_EXPECT_TRUE(write_file(TEST_FILE("c.tsrc"), "TSRC demo 10 10\nwhat 1 2\n"));
+    DMOD_TEST_EXPECT_TRUE(dmvsi_convert_file(TEST_FILE("c.tsrc"), NULL, &status) == NULL);
+    DMOD_TEST_EXPECT_EQ(status, -EBADMSG);
+}
+
+DMOD_TEST_STEP(dmvsi_measures_text_as_todmvf_makes_its_fonts)
+{
+    int status = -1;
+    dmvsi_doc_t doc = dmvsi_new();
+    dmvsi_font_info_t info;
+    DMOD_TEST_EXPECT_TRUE(doc != NULL);
+
+    dmvsi_font_t r16 = dmvsi_font(doc, INTER, 16, 0, &status);
+    DMOD_TEST_EXPECT_TRUE(r16 != NULL);
+    DMOD_TEST_EXPECT_EQ(status, 0);
+    DMOD_TEST_EXPECT_TRUE(dmvsi_font(doc, INTER, 16, 0, NULL) == r16);     /* the same */
+    DMOD_TEST_EXPECT_EQ(dmvsi_font_info(r16, &info), 0);
+    DMOD_TEST_EXPECT_EQ(info.ascent, 16);
+    DMOD_TEST_EXPECT_EQ(info.descent, 4);
+    DMOD_TEST_EXPECT_EQ(dmvsi_text_width(r16, "Hello, dmod!", 12), 98);
+    const char* polish = "Zażółć gęślą jaźń";
+    DMOD_TEST_EXPECT_EQ(dmvsi_text_width(r16, polish, strlen(polish)), 132);
+    DMOD_TEST_EXPECT_TRUE(dmvsi_font_has(r16, 0x0119u));      /* ę */
+    DMOD_TEST_EXPECT_FALSE(dmvsi_font_has(r16, 0xF1EBu));
+
+    /* Letter spacing, -0.55 px */
+    dmvsi_font_t r11 = dmvsi_font(doc, INTER, 11, -55, &status);
+    DMOD_TEST_EXPECT_TRUE(r11 != NULL && r11 != r16);
+    DMOD_TEST_EXPECT_EQ(dmvsi_font_info(r11, &info), 0);
+    DMOD_TEST_EXPECT_EQ(info.ascent, 11);
+    DMOD_TEST_EXPECT_EQ(info.descent, 3);
+    DMOD_TEST_EXPECT_EQ(dmvsi_text_width(r11, "12:00", 5), 25);
+    DMOD_TEST_EXPECT_EQ(dmvsi_text_width(r11, "dmodOS", 6), 42);
+
+    /* Not a font, no file */
+    DMOD_TEST_EXPECT_TRUE(write_file(TEST_FILE("not-a-font.ttf"), "hello"));
+    DMOD_TEST_EXPECT_TRUE(dmvsi_font(doc, TEST_FILE("not-a-font.ttf"), 12, 0, &status) == NULL);
+    DMOD_TEST_EXPECT_EQ(status, -EBADMSG);
+    DMOD_TEST_EXPECT_TRUE(dmvsi_font(doc, TEST_FILE("missing.ttf"), 12, 0, &status) == NULL);
+    DMOD_TEST_EXPECT_EQ(status, -ENOENT);
+
+    /* The built-in font */
+    dmvsi_font_t builtin = dmvsi_font(doc, NULL, 16, 0, &status);
+    DMOD_TEST_EXPECT_TRUE(builtin != NULL);
+    DMOD_TEST_EXPECT_EQ(dmvsi_font_info(builtin, &info), 0);
+    DMOD_TEST_EXPECT_TRUE(info.file == NULL && info.ascent > 0 && info.descent > 0);
+    DMOD_TEST_EXPECT_EQ(dmvsi_text_width(builtin, "ab", 2), 2 * 9);
+    dmvsi_free(doc);
+}
+
+DMOD_TEST_STEP(dmvsi_checks_what_is_added)
+{
+    dmvsi_doc_t doc = dmvsi_new();
+    dmvsi_fill_t fill;
+    dmvsi_group_t group;
+    memset(&fill, 0, sizeof(fill));
+    memset(&group, 0, sizeof(group));
+    DMOD_TEST_EXPECT_EQ(dmvsi_add_fill(doc, &fill), -EINVAL);             /* no view yet */
+    DMOD_TEST_EXPECT_EQ(dmvsi_set_view(doc, "v", 0, 10), -EINVAL);
+    DMOD_TEST_EXPECT_EQ(dmvsi_set_view(doc, "v", 10, 10), 0);
+    DMOD_TEST_EXPECT_EQ(dmvsi_set_view(doc, "v", 10, 10), -EINVAL);       /* once */
+    DMOD_TEST_EXPECT_EQ(dmvsi_end_group(doc), -EINVAL);                   /* not the root */
+
+    fill.paint.kind = DMVSI_PAINT_LINEAR;
+    fill.paint.count = 1;
+    DMOD_TEST_EXPECT_EQ(dmvsi_add_fill(doc, &fill), -EINVAL);             /* one stop */
+    fill.paint.count = 2;
+    fill.paint.stops[0].position = DMVSI_PERCENT(60);
+    fill.paint.stops[1].position = DMVSI_PERCENT(40);
+    DMOD_TEST_EXPECT_EQ(dmvsi_add_fill(doc, &fill), -EINVAL);             /* decreasing */
+    fill.paint.stops[1].position = DMVSI_PERCENT(60);
+    DMOD_TEST_EXPECT_EQ(dmvsi_add_fill(doc, &fill), 0);
+
+    group.flags = DMVSI_GROUP_CLIP;
+    group.rect.w = DMVSI_PX(5);
+    group.rect.h = DMVSI_PX(5);
+    group.name = "panel";
+    DMOD_TEST_EXPECT_EQ(dmvsi_begin_group(doc, &group), 0);
+    DMOD_TEST_EXPECT_EQ(dmvsi_end_group(doc), 0);
+    const dmvsi_node_t* g = dmvsi_root(doc)->first->next;
+    DMOD_TEST_EXPECT_TRUE(g != NULL && strcmp(g->u.group.name, "panel") == 0);
+    DMOD_TEST_EXPECT_TRUE(rect_is(&g->bounds, 0, 0, 5, 5));
+    dmvsi_free(doc);
+    dmvsi_free(NULL);
 }
