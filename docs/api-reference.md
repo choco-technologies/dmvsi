@@ -36,7 +36,7 @@ geometry) are 1/100 % (`DMVSI_PERCENT(n)`: 10000 is 100 %).
 | `dmvsi_add_frame(doc, frame)` | An outline `width` thick inside `rect` |
 | `dmvsi_add_shadow(doc, shadow)` | The shadow of a rounded rectangle `shape` (moved by its offset, grown by its spread) blurred with a Gaussian of `sigma`; shown outside `hole` - or inside it with `DMVSI_SHADOW_INSET`. A blurred element is a shadow with an empty hole |
 | `dmvsi_add_text(doc, text)` | A line of UTF-8 text: its pen at `x`, on `baseline`, in `font`, painted with `paint` |
-| `dmvsi_add_image(doc, image)` | An image file in `rect`; with `DMVSI_IMAGE_MASK` only its coverage, painted with `paint` |
+| `dmvsi_add_image(doc, image)` | An image file in `rect`; with `DMVSI_IMAGE_MASK` only its coverage, painted with `paint`. `width` x `height`: the size it is drawn at (scaled into it, its aspect kept; 0: its own), placed by `DMVSI_IMAGE_CENTER` / `_RIGHT` / `_MIDDLE` / `_BOTTOM` (else top left) and clipped to `rect`; `blur`: blurred with that standard deviation |
 
 A `dmvsi_paint_t` is a color (`DMVSI_PAINT_COLOR`, 0xAARRGGBB, not
 premultiplied) or a gradient placed on the shape as dmview places gradients:
