@@ -154,6 +154,10 @@ typedef struct
 #define DMVSI_SHADOW_INSET      0x01u   /**< Inside `hole` (box-shadow inset) instead of outside it */
 
 #define DMVSI_IMAGE_MASK        0x01u   /**< Only the image's coverage counts, painted with `paint` (dmview ICON) */
+#define DMVSI_IMAGE_CENTER      0x02u   /**< Placed in the middle of `rect` across (else at its left) ... */
+#define DMVSI_IMAGE_RIGHT       0x04u   /**< ... or at its right */
+#define DMVSI_IMAGE_MIDDLE      0x08u   /**< In the middle of `rect` down (else at its top) ... */
+#define DMVSI_IMAGE_BOTTOM      0x10u   /**< ... or at its bottom */
 
 /** A group: what is in it is clipped to `rect`, faded, scrolled. */
 typedef struct
@@ -220,6 +224,9 @@ typedef struct
     const char*     path;           /**< The image file (as the plugin found it) */
     uint8_t         flags;          /**< DMVSI_IMAGE_* */
     dmvsi_paint_t   paint;          /**< DMVSI_IMAGE_MASK: what the coverage is painted with */
+    dmvsi_unit_t    width;          /**< The size it is drawn at - the file scaled into it, its aspect kept; */
+    dmvsi_unit_t    height;         /**< 0: its own. Placed in `rect` by the flags and clipped to it */
+    dmvsi_unit_t    blur;           /**< Blurred: the standard deviation of the Gaussian blur, 0: sharp */
 } dmvsi_image_t;
 
 /** A node of a document, as the writer reads it (dmvsi_root()). */
