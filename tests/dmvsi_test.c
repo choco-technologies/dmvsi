@@ -234,3 +234,118 @@ DMOD_TEST_STEP(dmvsi_describes_behaviour)
     DMOD_TEST_EXPECT_TRUE(actions != NULL && actions[1].kind == DMVSI_ACT_ANIMATE && actions[1].duration == 300);
     dmvsi_free(doc);
 }
+
+/* A one-action handler: kind, var, operand var, value, text */
+static dmvsi_handler_t one(dmvsi_doc_t doc, uint8_t kind, dmvsi_var_t var, dmvsi_var_t operand, int32_t value, const char* text)
+{
+    dmvsi_action_t a;
+    memset(&a, 0, sizeof(a));
+    a.kind = kind;
+    a.var = var;
+    a.operand = operand;
+    a.value = value;
+    a.text = text;
+    return dmvsi_add_handler(doc, &a, 1);
+}
+
+DMOD_TEST_STEP(dmvsi_describes_code)
+{
+    dmvsi_doc_t doc = dmvsi_new();
+    DMOD_TEST_EXPECT_EQ(dmvsi_set_view(doc, "v", 100, 100), 0);
+    dmvsi_var_t n = dmvsi_add_var(doc, "speed", 0);
+    dmvsi_var_t m = dmvsi_add_var(doc, "step", 2);
+    dmvsi_var_t text = dmvsi_add_text_var(doc, "speed-text", 8, "0 km/h, too long");
+    dmvsi_var_t unit = dmvsi_add_text_var(doc, "unit", 4, "km/h");
+    DMOD_TEST_EXPECT_TRUE(n == 1 && m == 2 && text == 3 && unit == 4);
+    DMOD_TEST_EXPECT_EQ(dmvsi_add_text_var(doc, "big", 2000, ""), 0);       /* 1024 bytes at most */
+    dmvsi_var_info_t info;
+    DMOD_TEST_EXPECT_EQ(dmvsi_var_info(doc, text, &info), 0);
+    DMOD_TEST_EXPECT_TRUE(strcmp(info.name, "speed_text") == 0 && info.kind == DMVSI_VAR_TEXT && info.size == 8);
+    DMOD_TEST_EXPECT_TRUE(strcmp(info.text, "0 km/h, ") == 0);              /* cut to its size */
+    DMOD_TEST_EXPECT_TRUE(dmvsi_var_info(doc, m, &info) == 0 && info.kind == DMVSI_VAR_INT && info.initial == 2);
+    DMOD_TEST_EXPECT_EQ(dmvsi_var_info(doc, 9, &info), -EINVAL);
+
+    /* What each action takes: integers, texts, both of one kind */
+    DMOD_TEST_EXPECT_TRUE(one(doc, DMVSI_ACT_ADD, n, m, 0, NULL) != 0);                 /* speed += step */
+    DMOD_TEST_EXPECT_TRUE(one(doc, DMVSI_ACT_SET, text, unit, 0, NULL) != 0);           /* text = unit */
+    DMOD_TEST_EXPECT_TRUE(one(doc, DMVSI_ACT_APPEND, text, 0, 0, " km/h") != 0);
+    DMOD_TEST_EXPECT_TRUE(one(doc, DMVSI_ACT_FORMAT, text, n, 0, "%d") != 0);           /* text = speed */
+    DMOD_TEST_EXPECT_EQ(one(doc, DMVSI_ACT_ADD, n, text, 0, NULL), 0);                  /* a text into a number */
+    DMOD_TEST_EXPECT_EQ(one(doc, DMVSI_ACT_APPEND, n, 0, 0, "x"), 0);                   /* text onto a number */
+    DMOD_TEST_EXPECT_EQ(one(doc, DMVSI_ACT_SET, text, 0, 0, NULL), 0);                  /* no text */
+    DMOD_TEST_EXPECT_EQ(one(doc, DMVSI_ACT_FORMAT, text, unit, 0, "%d"), 0);            /* formats a number */
+    DMOD_TEST_EXPECT_EQ(one(doc, DMVSI_ACT_IF_EQ, text, 0, 0, "x"), 0);                 /* texts are not compared */
+
+    /* Blocks: IF ... ELSE ... END, LOOP with BREAK, nothing out of place */
+    dmvsi_action_t loop[8];
+    memset(loop, 0, sizeof(loop));
+    loop[0].kind = DMVSI_ACT_LOOP;
+    loop[1].kind = DMVSI_ACT_ADD;    loop[1].var = n;  loop[1].value = 2;
+    loop[2].kind = DMVSI_ACT_IF_GE;  loop[2].var = n;  loop[2].value = 68;
+    loop[3].kind = DMVSI_ACT_BREAK;
+    loop[4].kind = DMVSI_ACT_ELSE;
+    loop[5].kind = DMVSI_ACT_CONTINUE;
+    loop[6].kind = DMVSI_ACT_END;
+    loop[7].kind = DMVSI_ACT_END;
+    dmvsi_handler_t counting = dmvsi_add_handler(doc, loop, 8);
+    DMOD_TEST_EXPECT_TRUE(counting != 0);
+    DMOD_TEST_EXPECT_EQ(dmvsi_add_handler(doc, loop + 2, 6), 0);            /* BREAK out of no LOOP, END too many */
+    loop[5].kind = DMVSI_ACT_ELSE;
+    DMOD_TEST_EXPECT_EQ(dmvsi_add_handler(doc, loop, 8), 0);                /* two ELSEs */
+
+    /* A handler called before it is made; not itself */
+    dmvsi_handler_t later = dmvsi_new_handler(doc);
+    dmvsi_action_t call[2];
+    memset(call, 0, sizeof(call));
+    call[0].kind = DMVSI_ACT_CALL;
+    call[0].handler = later;
+    call[1].kind = DMVSI_ACT_RETURN;
+    dmvsi_handler_t caller = dmvsi_add_handler(doc, call, 2);
+    DMOD_TEST_EXPECT_TRUE(caller != 0);
+    const dmvsi_action_t* actions = NULL;
+    DMOD_TEST_EXPECT_EQ(dmvsi_handler_actions(doc, later, &actions), 0u);   /* not made yet */
+    DMOD_TEST_EXPECT_EQ(dmvsi_set_handler(doc, later, call, 1), -EINVAL);   /* calls itself */
+    DMOD_TEST_EXPECT_EQ(dmvsi_set_handler(doc, later, loop + 1, 1), 0);
+    DMOD_TEST_EXPECT_EQ(dmvsi_set_handler(doc, later, loop + 1, 1), -EINVAL);   /* once */
+    DMOD_TEST_EXPECT_EQ(dmvsi_handler_actions(doc, later, &actions), 1u);
+    call[0].handler = 99;
+    DMOD_TEST_EXPECT_EQ(dmvsi_add_handler(doc, call, 1), 0);                /* no such handler */
+
+    /* Its texts are copies */
+    char format[4] = "%d";
+    dmvsi_handler_t f = one(doc, DMVSI_ACT_FORMAT, text, n, 0, format);
+    format[0] = 'x';
+    DMOD_TEST_EXPECT_TRUE(dmvsi_handler_actions(doc, f, &actions) == 1u && strcmp(actions[0].text, "%d") == 0);
+
+    /* Timers, the handler run when the view is shown */
+    DMOD_TEST_EXPECT_EQ(dmvsi_add_timer(doc, 35, counting), 0);
+    DMOD_TEST_EXPECT_EQ(dmvsi_add_timer(doc, 5, counting), -EINVAL);       /* 10 ms at least */
+    DMOD_TEST_EXPECT_EQ(dmvsi_add_timer(doc, 100, 77), -EINVAL);
+    DMOD_TEST_EXPECT_EQ(dmvsi_set_init(doc, caller), 0);
+    uint16_t ms = 0;
+    dmvsi_handler_t t = 0;
+    DMOD_TEST_EXPECT_TRUE(dmvsi_timer_at(doc, 0, &ms, &t) && ms == 35 && t == counting);
+    DMOD_TEST_EXPECT_FALSE(dmvsi_timer_at(doc, 1, &ms, &t));
+    DMOD_TEST_EXPECT_EQ(dmvsi_init_handler(doc), caller);
+
+    /* Text that shows a variable: its characters in the font, as wide as its room */
+    dmvsi_font_t font = dmvsi_font(doc, NULL, 16, 0, NULL);
+    dmvsi_text_t line;
+    memset(&line, 0, sizeof(line));
+    line.text = "0";
+    line.length = 1;
+    line.font = font;
+    line.paint.color = 0xFFFFFFFFu;
+    line.var = text;
+    line.chars = "0123456789 km/h";
+    line.width = DMVSI_PX(60);
+    line.align = DMVSI_TEXT_CENTER;
+    DMOD_TEST_EXPECT_EQ(dmvsi_add_text(doc, &line), 0);
+    DMOD_TEST_EXPECT_TRUE(dmvsi_font_has(font, '9') && dmvsi_font_has(font, 'k'));
+    const dmvsi_node_t* node = dmvsi_root(doc)->first;
+    DMOD_TEST_EXPECT_TRUE(node != NULL && node->u.text.var == text && node->u.text.align == DMVSI_TEXT_CENTER &&
+                          node->bounds.w == DMVSI_PX(60));
+    line.var = n;
+    DMOD_TEST_EXPECT_EQ(dmvsi_add_text(doc, &line), -EINVAL);               /* not a text variable */
+    dmvsi_free(doc);
+}

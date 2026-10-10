@@ -279,6 +279,64 @@ dmod_dmvsi_api_declaration(1.0, dmvsi_var_t, _add_var, ( dmvsi_doc_t doc, const 
     return doc_valid(doc) ? doc_add_var(doc, name, initial) : 0;
 }
 
+dmod_dmvsi_api_declaration(1.0, dmvsi_var_t, _add_text_var, ( dmvsi_doc_t doc, const char* name, uint16_t size, const char* initial ))
+{
+    return doc_valid(doc) ? doc_add_text_var(doc, name, size, initial) : 0;
+}
+
+dmod_dmvsi_api_declaration(1.0, int, _var_info, ( dmvsi_doc_t doc, dmvsi_var_t var, dmvsi_var_info_t* info ))
+{
+    if (!doc_valid(doc) || var == 0 || var > doc->var_count || info == NULL)
+        return -EINVAL;
+    const var_t* v = &doc->vars[var - 1U];
+    memset(info, 0, sizeof(*info));
+    info->name = v->name;
+    info->kind = v->kind;
+    info->initial = v->initial;
+    info->text = v->text;
+    info->size = v->size;
+    return 0;
+}
+
+dmod_dmvsi_api_declaration(1.0, dmvsi_handler_t, _new_handler, ( dmvsi_doc_t doc ))
+{
+    return doc_valid(doc) ? doc_new_handler(doc) : 0;
+}
+
+dmod_dmvsi_api_declaration(1.0, int, _set_handler, ( dmvsi_doc_t doc, dmvsi_handler_t handler, const dmvsi_action_t* actions, uint32_t count ))
+{
+    return doc_valid(doc) ? doc_set_handler(doc, handler, actions, count) : -EINVAL;
+}
+
+dmod_dmvsi_api_declaration(1.0, int, _add_timer, ( dmvsi_doc_t doc, uint16_t ms, dmvsi_handler_t handler ))
+{
+    return doc_valid(doc) ? doc_add_timer(doc, ms, handler) : -EINVAL;
+}
+
+dmod_dmvsi_api_declaration(1.0, int, _set_init, ( dmvsi_doc_t doc, dmvsi_handler_t handler ))
+{
+    if (!doc_valid(doc) || handler == 0 || handler > doc->handler_count)
+        return -EINVAL;
+    doc->init = handler;
+    return 0;
+}
+
+dmod_dmvsi_api_declaration(1.0, bool, _timer_at, ( dmvsi_doc_t doc, uint32_t index, uint16_t* ms, dmvsi_handler_t* handler ))
+{
+    if (!doc_valid(doc) || index >= doc->timer_count)
+        return false;
+    if (ms != NULL)
+        *ms = doc->timers[index].ms;
+    if (handler != NULL)
+        *handler = doc->timers[index].handler;
+    return true;
+}
+
+dmod_dmvsi_api_declaration(1.0, dmvsi_handler_t, _init_handler, ( dmvsi_doc_t doc ))
+{
+    return doc_valid(doc) ? doc->init : 0;
+}
+
 dmod_dmvsi_api_declaration(1.0, int, _bind, ( dmvsi_doc_t doc, uint8_t what, dmvsi_var_t var ))
 {
     return doc_valid(doc) ? doc_bind(doc, what, var) : -EINVAL;

@@ -110,11 +110,26 @@ typedef struct dmvsi_doc* dmvsi_doc_t;
 /** A variable of the document: 1 ...; 0 is none. */
 typedef uint16_t dmvsi_var_t;
 
+#define DMVSI_VAR_INT           0u      /**< A 32-bit integer (dmvsi_add_var()) */
+#define DMVSI_VAR_TEXT          1u      /**< Text of up to `size` bytes (dmvsi_add_text_var()) */
+
+/** What a variable is (dmvsi_var_info()) */
+typedef struct
+{
+    const char*     name;           /**< As the view names it */
+    uint8_t         kind;           /**< DMVSI_VAR_* */
+    int32_t         initial;        /**< DMVSI_VAR_INT */
+    const char*     text;           /**< DMVSI_VAR_TEXT: its initial text */
+    uint16_t        size;           /**< DMVSI_VAR_TEXT: bytes it holds at most */
+} dmvsi_var_info_t;
+
 /** What of a group a variable is (dmvsi_bind()) */
 #define DMVSI_BIND_X            0u      /**< Its rectangle's x: the variable is a position on the screen, in units */
 #define DMVSI_BIND_Y            1u      /**< Its rectangle's y */
 #define DMVSI_BIND_OPACITY      2u      /**< Its opacity, 0 ... 255 */
-#define DMVSI_BIND_COUNT        3u
+#define DMVSI_BIND_W            3u      /**< Its rectangle's width, in pixels (of the view) - what a handler computes */
+#define DMVSI_BIND_H            4u      /**< Its rectangle's height, in pixels */
+#define DMVSI_BIND_COUNT        5u
 
 /** The variable of whether the box a group is in is pressed (dmview's $box.pressed): 1 while it is */
 #define DMVSI_VAR_PRESSED       0xFFFFu
@@ -125,12 +140,36 @@ typedef uint16_t dmvsi_var_t;
 /** A handler of the document: 1 ...; 0 is none. */
 typedef uint16_t dmvsi_handler_t;
 
-#define DMVSI_ACT_SET           0u      /**< var = value */
+/*
+ * Actions. "The operand" is `operand`'s value when it is set, else `value`
+ * (a text variable's: `operand`'s text, else `text`). Blocks - IF ... [ELSE]
+ * END, LOOP ... END - nest.
+ */
+#define DMVSI_ACT_SET           0u      /**< var = the operand (a text var: its text) */
 #define DMVSI_ACT_ANIMATE       1u      /**< var goes to value in `duration` ms, eased by `easing` */
 #define DMVSI_ACT_TOGGLE        2u      /**< var = (var == 0) ? 1 : 0 */
-#define DMVSI_ACT_IF_EQ         3u      /**< The actions up to the matching DMVSI_ACT_END only when var == value */
-#define DMVSI_ACT_IF_NE         4u      /**< ... only when var != value */
-#define DMVSI_ACT_END           5u      /**< The end of an IF */
+#define DMVSI_ACT_IF_EQ         3u      /**< The actions up to the matching DMVSI_ACT_ELSE / _END only when var == the operand */
+#define DMVSI_ACT_IF_NE         4u      /**< ... only when var != the operand */
+#define DMVSI_ACT_END           5u      /**< The end of an IF or a LOOP */
+#define DMVSI_ACT_ADD           6u      /**< var += the operand (integers: 32-bit, wrapping) */
+#define DMVSI_ACT_SUB           7u      /**< var -= the operand */
+#define DMVSI_ACT_MUL           8u      /**< var *= the operand */
+#define DMVSI_ACT_DIV           9u      /**< var /= the operand, toward zero; 0 when it is 0 */
+#define DMVSI_ACT_MOD           10u     /**< var %= the operand; 0 when it is 0 */
+#define DMVSI_ACT_MIN           11u     /**< var = min(var, the operand) */
+#define DMVSI_ACT_MAX           12u     /**< var = max(var, the operand) */
+#define DMVSI_ACT_IF_LT         13u     /**< IF var < the operand */
+#define DMVSI_ACT_IF_LE         14u     /**< IF var <= the operand */
+#define DMVSI_ACT_IF_GT         15u     /**< IF var > the operand */
+#define DMVSI_ACT_IF_GE         16u     /**< IF var >= the operand */
+#define DMVSI_ACT_ELSE          17u     /**< What an IF does when it does not hold, up to its END */
+#define DMVSI_ACT_LOOP          18u     /**< The actions up to its END, again and again (until a BREAK) */
+#define DMVSI_ACT_BREAK         19u     /**< Out of the innermost LOOP */
+#define DMVSI_ACT_CONTINUE      20u     /**< To the start of the innermost LOOP */
+#define DMVSI_ACT_CALL          21u     /**< Run handler `handler`, then go on */
+#define DMVSI_ACT_RETURN        22u     /**< Out of the handler */
+#define DMVSI_ACT_APPEND        23u     /**< Text var += the operand's text */
+#define DMVSI_ACT_FORMAT        24u     /**< Text var = `text` (one %d / %x, a width: %02d) with the operand (an integer) */
 
 /** One action of a handler */
 typedef struct
@@ -140,6 +179,9 @@ typedef struct
     int32_t         value;          /**< A position (of a variable bound to X / Y) in units, an opacity, a number */
     uint16_t        duration;       /**< ANIMATE: milliseconds */
     int16_t         easing[4];      /**< ANIMATE: cubic-bezier(x1, y1, x2, y2), 1/1000 (CSS's) */
+    dmvsi_var_t     operand;        /**< The operand is this variable (0: `value` / `text`) - of the same kind as var */
+    const char*     text;           /**< A text var's operand (copied); FORMAT's format */
+    dmvsi_handler_t handler;        /**< CALL: what it runs */
 } dmvsi_action_t;
 
 #define DMVSI_NODE_GROUP        0u      /**< Holds other nodes */
@@ -211,11 +253,19 @@ typedef struct
 {
     dmvsi_unit_t    x;
     dmvsi_unit_t    baseline;
-    const char*     text;           /**< UTF-8 */
+    const char*     text;           /**< UTF-8 - with `var`: the variable's initial text (what it is measured by) */
     size_t          length;         /**< Bytes of `text` */
     dmvsi_font_t    font;
     dmvsi_paint_t   paint;
+    dmvsi_var_t     var;            /**< Its text is this text variable's, as the handlers change it (0: `text`) */
+    const char*     chars;          /**< With `var`: every character it may show (UTF-8, added to the font) */
+    dmvsi_unit_t    width;          /**< With `var`: the room it is placed in from x (0: as wide as `text`) ... */
+    uint8_t         align;          /**< ... by DMVSI_TEXT_* */
 } dmvsi_text_t;
+
+#define DMVSI_TEXT_LEFT         0u
+#define DMVSI_TEXT_CENTER       1u
+#define DMVSI_TEXT_RIGHT        2u
 
 /** An image file shown in `rect`. */
 typedef struct
@@ -353,6 +403,16 @@ dmod_dmvsi_api(1.0, int, _add_image, ( dmvsi_doc_t doc, const dmvsi_image_t* ima
 dmod_dmvsi_api(1.0, dmvsi_var_t, _add_var, ( dmvsi_doc_t doc, const char* name, int32_t initial ));
 
 /**
+ * @brief A text variable of up to `size` bytes (1 ... 1024), its initial text
+ *        (copied, cut to `size`) - named as dmvsi_add_var() names them.
+ * @return The variable, 0 on failure
+ */
+dmod_dmvsi_api(1.0, dmvsi_var_t, _add_text_var, ( dmvsi_doc_t doc, const char* name, uint16_t size, const char* initial ));
+
+/** @brief What a variable (1 ...) is. @return 0, -EINVAL (no such variable) */
+dmod_dmvsi_api(1.0, int, _var_info, ( dmvsi_doc_t doc, dmvsi_var_t var, dmvsi_var_info_t* info ));
+
+/**
  * @brief Bind the innermost open group's position or opacity to a variable
  *        (DMVSI_BIND_*): the group is where (or as opaque as) the variable
  *        says. A variable is bound to one group at most. A bound group is
@@ -362,10 +422,27 @@ dmod_dmvsi_api(1.0, dmvsi_var_t, _add_var, ( dmvsi_doc_t doc, const char* name, 
 dmod_dmvsi_api(1.0, int, _bind, ( dmvsi_doc_t doc, uint8_t what, dmvsi_var_t var ));
 
 /**
- * @brief A handler: actions run in order (DMVSI_ACT_*; IF ... END nest).
- * @return The handler, 0 on failure (-EINVAL: an IF without its END)
+ * @brief A handler: actions run in order (DMVSI_ACT_*; blocks nest).
+ * @return The handler, 0 on failure (-EINVAL: a block without its END, an
+ *         action that does not fit its variables)
  */
 dmod_dmvsi_api(1.0, dmvsi_handler_t, _add_handler, ( dmvsi_doc_t doc, const dmvsi_action_t* actions, uint32_t count ));
+
+/**
+ * @brief A handler without its actions yet - for the handlers that CALL it
+ *        before it is made (dmvsi_set_handler()).
+ * @return The handler, 0 on failure
+ */
+dmod_dmvsi_api(1.0, dmvsi_handler_t, _new_handler, ( dmvsi_doc_t doc ));
+
+/** @brief The actions of a handler of dmvsi_new_handler() - once. @return 0, -EINVAL, -ENOMEM */
+dmod_dmvsi_api(1.0, int, _set_handler, ( dmvsi_doc_t doc, dmvsi_handler_t handler, const dmvsi_action_t* actions, uint32_t count ));
+
+/** @brief Run a handler every `ms` milliseconds (10 ...) while the view is shown. @return 0, -EINVAL, -ENOMEM */
+dmod_dmvsi_api(1.0, int, _add_timer, ( dmvsi_doc_t doc, uint16_t ms, dmvsi_handler_t handler ));
+
+/** @brief Run a handler once when the view is shown, before it is drawn. @return 0, -EINVAL */
+dmod_dmvsi_api(1.0, int, _set_init, ( dmvsi_doc_t doc, dmvsi_handler_t handler ));
 
 /**
  * @brief Show the innermost open group only while a variable has a value -
@@ -384,6 +461,12 @@ dmod_dmvsi_api(1.0, bool, _var_at, ( dmvsi_doc_t doc, uint32_t index, const char
 
 /** @brief A handler's actions. @return Their number; *actions stays NULL for no such handler */
 dmod_dmvsi_api(1.0, uint32_t, _handler_actions, ( dmvsi_doc_t doc, dmvsi_handler_t handler, const dmvsi_action_t** actions ));
+
+/** @brief The timers: the @p index -th (0 ...), false past the last. */
+dmod_dmvsi_api(1.0, bool, _timer_at, ( dmvsi_doc_t doc, uint32_t index, uint16_t* ms, dmvsi_handler_t* handler ));
+
+/** @brief The handler run when the view is shown, 0: none. */
+dmod_dmvsi_api(1.0, dmvsi_handler_t, _init_handler, ( dmvsi_doc_t doc ));
 
 /* ---- API - fonts ---- */
 
