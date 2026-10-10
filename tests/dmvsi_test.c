@@ -351,3 +351,33 @@ DMOD_TEST_STEP(dmvsi_describes_code)
     DMOD_TEST_EXPECT_EQ(dmvsi_add_text(doc, &line), -EINVAL);               /* not a text variable */
     dmvsi_free(doc);
 }
+
+DMOD_TEST_STEP(dmvsi_keeps_images)
+{
+    dmvsi_doc_t doc = dmvsi_new();
+    DMOD_TEST_EXPECT_TRUE(doc != NULL);
+    if (doc == NULL)
+        return;
+    DMOD_TEST_EXPECT_EQ(dmvsi_set_view(doc, "images", 100, 100), 0);
+    dmvsi_image_t im;
+    memset(&im, 0, sizeof(im));
+    im.rect.x = DMVSI_PX(10);
+    im.rect.y = DMVSI_PX(10);
+    im.rect.w = DMVSI_PX(64);
+    im.rect.h = DMVSI_PX(64);
+    im.path = "cover.jpg";
+    im.width = DMVSI_PX(96);
+    im.height = DMVSI_PX(64);
+    im.flags = DMVSI_IMAGE_CENTER | DMVSI_IMAGE_MIDDLE;
+    im.radius = DMVSI_PX(32);                       /* In a round box */
+    DMOD_TEST_EXPECT_EQ(dmvsi_add_image(doc, &im), 0);
+    const dmvsi_node_t* n = dmvsi_root(doc)->first;
+    DMOD_TEST_EXPECT_TRUE(n != NULL && n->kind == DMVSI_NODE_IMAGE);
+    if (n != NULL)
+    {
+        DMOD_TEST_EXPECT_TRUE(strcmp(n->u.image.path, "cover.jpg") == 0 && n->u.image.path != im.path);
+        DMOD_TEST_EXPECT_EQ(n->u.image.radius, DMVSI_PX(32));
+        DMOD_TEST_EXPECT_EQ(n->u.image.width, DMVSI_PX(96));
+    }
+    dmvsi_free(doc);
+}

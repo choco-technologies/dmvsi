@@ -280,6 +280,8 @@ typedef struct
     dmvsi_unit_t    width;          /**< The size it is drawn at - the file scaled into it, its aspect kept; */
     dmvsi_unit_t    height;         /**< 0: its own. Placed in `rect` by the flags and clipped to it */
     dmvsi_unit_t    blur;           /**< Blurred: the standard deviation of the Gaussian blur, 0: sharp */
+    dmvsi_unit_t    radius;         /**< Shown in a rounded box (border-radius, overflow: hidden): what of it is
+                                         outside `rect`'s corners of this radius is not seen; 0: square */
 } dmvsi_image_t;
 
 /** A node of a document, as the writer reads it (dmvsi_root()). */
