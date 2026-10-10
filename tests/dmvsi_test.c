@@ -275,6 +275,8 @@ DMOD_TEST_STEP(dmvsi_describes_code)
     DMOD_TEST_EXPECT_EQ(one(doc, DMVSI_ACT_SET, text, 0, 0, NULL), 0);                  /* no text */
     DMOD_TEST_EXPECT_EQ(one(doc, DMVSI_ACT_FORMAT, text, unit, 0, "%d"), 0);            /* formats a number */
     DMOD_TEST_EXPECT_EQ(one(doc, DMVSI_ACT_IF_EQ, text, 0, 0, "x"), 0);                 /* texts are not compared */
+    DMOD_TEST_EXPECT_TRUE(one(doc, DMVSI_ACT_SET, m, DMVSI_VAR_TIME, 0, NULL) != 0);    /* step = the time */
+    DMOD_TEST_EXPECT_EQ(one(doc, DMVSI_ACT_SET, text, DMVSI_VAR_TIME, 0, NULL), 0);     /* not a text */
 
     /* Blocks: IF ... ELSE ... END, LOOP with BREAK, nothing out of place */
     dmvsi_action_t loop[8];

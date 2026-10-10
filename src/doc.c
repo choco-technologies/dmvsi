@@ -388,10 +388,12 @@ static bool action_valid(const dmvsi_doc_t doc, dmvsi_handler_t self, const dmvs
         default:
             break;
     }
-    if (a->kind > DMVSI_ACT_FORMAT || a->var == 0 || a->var > doc->var_count || a->operand > doc->var_count)
+    if (a->kind > DMVSI_ACT_FORMAT || a->var == 0 || a->var > doc->var_count ||
+        (a->operand > doc->var_count && a->operand != DMVSI_VAR_TIME))
         return false;
     bool text = doc->vars[a->var - 1U].kind == DMVSI_VAR_TEXT;
-    uint8_t operand = (a->operand != 0) ? doc->vars[a->operand - 1U].kind : (text ? DMVSI_VAR_TEXT : DMVSI_VAR_INT);
+    uint8_t operand = (a->operand == DMVSI_VAR_TIME) ? DMVSI_VAR_INT :
+                      (a->operand != 0) ? doc->vars[a->operand - 1U].kind : (text ? DMVSI_VAR_TEXT : DMVSI_VAR_INT);
     switch (a->kind)
     {
         case DMVSI_ACT_SET:
@@ -400,7 +402,7 @@ static bool action_valid(const dmvsi_doc_t doc, dmvsi_handler_t self, const dmvs
                 return operand == DMVSI_VAR_TEXT && (a->operand != 0 || a->text != NULL);
             return a->kind == DMVSI_ACT_SET && operand == DMVSI_VAR_INT;
         case DMVSI_ACT_FORMAT:
-            return text && a->text != NULL && (a->operand == 0 || doc->vars[a->operand - 1U].kind == DMVSI_VAR_INT);
+            return text && a->text != NULL && operand == DMVSI_VAR_INT;
         case DMVSI_ACT_ANIMATE:
             return !text && a->operand == 0;
         default:

@@ -74,8 +74,8 @@ its length changes.
 ### Actions
 
 `dmvsi_action_t`: `kind`, `var`, and the operand - `operand` (a variable of
-the same kind as `var`) when it is set, else `value` (an integer) or `text`
-(copied). Blocks nest: `IF ... [ELSE] ... END`, `LOOP ... END`.
+the same kind as `var`, or `DMVSI_VAR_TIME`: the milliseconds since the view
+was shown) when it is set, else `value` (an integer) or `text` (copied). Blocks nest: `IF ... [ELSE] ... END`, `LOOP ... END`.
 
 | Kind | |
 |------|-|

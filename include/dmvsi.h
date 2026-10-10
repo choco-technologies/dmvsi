@@ -134,6 +134,9 @@ typedef struct
 /** The variable of whether the box a group is in is pressed (dmview's $box.pressed): 1 while it is */
 #define DMVSI_VAR_PRESSED       0xFFFFu
 
+/** An operand only: milliseconds since the view was shown (dmview's $time) - read, never set */
+#define DMVSI_VAR_TIME          0xFFFEu
+
 /** Conditions of a group being shown (dmvsi_show_when()), at most */
 #define DMVSI_MAX_SHOW          2u
 
@@ -179,7 +182,7 @@ typedef struct
     int32_t         value;          /**< A position (of a variable bound to X / Y) in units, an opacity, a number */
     uint16_t        duration;       /**< ANIMATE: milliseconds */
     int16_t         easing[4];      /**< ANIMATE: cubic-bezier(x1, y1, x2, y2), 1/1000 (CSS's) */
-    dmvsi_var_t     operand;        /**< The operand is this variable (0: `value` / `text`) - of the same kind as var */
+    dmvsi_var_t     operand;        /**< The operand is this variable (0: `value` / `text`; DMVSI_VAR_TIME: the time) - of var's kind */
     const char*     text;           /**< A text var's operand (copied); FORMAT's format */
     dmvsi_handler_t handler;        /**< CALL: what it runs */
 } dmvsi_action_t;
