@@ -84,9 +84,16 @@ void doc_free(dmvsi_doc_t doc)
     }
     fonts_free(doc);
     for (uint32_t i = 0; i < doc->handler_count; i++)
+    {
+        for (uint32_t k = 0; k < doc->handlers[i].count; k++)
+            Dmod_Free((char*)doc->handlers[i].actions[k].text);
         Dmod_Free(doc->handlers[i].actions);
+    }
     Dmod_Free(doc->handlers);
+    for (uint32_t i = 0; i < doc->var_count; i++)
+        Dmod_Free(doc->vars[i].text);
     Dmod_Free(doc->vars);
+    Dmod_Free(doc->timers);
     Dmod_Free(doc->name);
     doc->magic = 0;
     Dmod_Free(doc);
@@ -222,9 +229,12 @@ int doc_add(dmvsi_doc_t doc, uint8_t kind, const void* shape)
         case DMVSI_NODE_TEXT:
         {
             const dmvsi_text_t* t = shape;
-            if (t->font == NULL || t->text == NULL || !paint_valid(&t->paint))
+            if (t->font == NULL || t->text == NULL || !paint_valid(&t->paint) || t->align > DMVSI_TEXT_RIGHT ||
+                (t->var != 0 && (t->var > doc->var_count || doc->vars[t->var - 1U].kind != DMVSI_VAR_TEXT)))
                 return -EINVAL;
             int status = font_add_chars(t->font, t->text, t->length);
+            if (status == 0 && t->var != 0 && t->chars != NULL)
+                status = font_add_chars(t->font, t->chars, strlen(t->chars));     /* What it may show */
             if (status != 0)
                 return status;
             if ((n = new_node(doc, kind, t->length + 1U)) == NULL)
@@ -234,8 +244,9 @@ int doc_add(dmvsi_doc_t doc, uint8_t kind, const void* shape)
             copy[t->length] = '\0';
             n->pub.u.text = *t;
             n->pub.u.text.text = copy;
-            dmvsi_rect_t b = { t->x, t->baseline - DMVSI_PX(t->font->ascent), DMVSI_PX(text_width(t->font, t->text, t->length)),
-                               DMVSI_PX(t->font->ascent + t->font->descent) };
+            n->pub.u.text.chars = NULL;                 /* In the font now */
+            dmvsi_unit_t w = (t->var != 0 && t->width > 0) ? t->width : DMVSI_PX(text_width(t->font, t->text, t->length));
+            dmvsi_rect_t b = { t->x, t->baseline - DMVSI_PX(t->font->ascent), w, DMVSI_PX(t->font->ascent + t->font->descent) };
             n->pub.bounds = b;
             break;
         }
@@ -289,12 +300,13 @@ static bool var_named(const dmvsi_doc_t doc, const char* name)
     return false;
 }
 
-dmvsi_var_t doc_add_var(dmvsi_doc_t doc, const char* name, int32_t initial)
+/* A new variable named after `name` (made unique), NULL on failure */
+static var_t* new_var(dmvsi_doc_t doc, const char* name)
 {
     char base[MAX_VAR_NAME - 6U];
     size_t n = 0;
     if (doc->var_count >= 0xFFFEu || !grow((void**)&doc->vars, doc->var_count, &doc->var_capacity, sizeof(var_t)))
-        return 0;
+        return NULL;
     for (const char* s = (name != NULL) ? name : "v"; *s != '\0' && n + 1U < sizeof(base); s++)
     {
         char c = *s;
@@ -311,7 +323,38 @@ dmvsi_var_t doc_add_var(dmvsi_doc_t doc, const char* name, int32_t initial)
     strcpy(v->name, base);
     for (uint32_t k = 2; var_named(doc, v->name); k++)
         Dmod_SnPrintf(v->name, sizeof(v->name), "%s_%u", base, (unsigned)k);
+    return v;
+}
+
+dmvsi_var_t doc_add_var(dmvsi_doc_t doc, const char* name, int32_t initial)
+{
+    var_t* v = new_var(doc, name);
+    if (v == NULL)
+        return 0;
+    v->kind = DMVSI_VAR_INT;
     v->initial = initial;
+    doc->var_count++;
+    return (dmvsi_var_t)doc->var_count;
+}
+
+dmvsi_var_t doc_add_text_var(dmvsi_doc_t doc, const char* name, uint16_t size, const char* initial)
+{
+    if (size == 0 || size > MAX_TEXT_VAR)
+        return 0;
+    var_t* v = new_var(doc, name);
+    if (v == NULL)
+        return 0;
+    size_t n = (initial != NULL) ? strlen(initial) : 0;
+    if (n > size)
+    {
+        n = size;
+        while (n > 0 && ((uint8_t)initial[n] & 0xC0u) == 0x80u)
+            n--;                                    /* Not in the middle of a character */
+    }
+    if ((v->text = copy_string((initial != NULL) ? initial : "", n)) == NULL)
+        return 0;
+    v->kind = DMVSI_VAR_TEXT;
+    v->size = size;
     doc->var_count++;
     return (dmvsi_var_t)doc->var_count;
 }
@@ -320,37 +363,150 @@ int doc_bind(dmvsi_doc_t doc, uint8_t what, dmvsi_var_t var)
 {
     node_t* g = doc->current;
     if (g == NULL || g == doc->root || what >= DMVSI_BIND_COUNT || var == 0 || var > doc->var_count ||
-        doc->vars[var - 1U].bound)
+        doc->vars[var - 1U].bound || doc->vars[var - 1U].kind != DMVSI_VAR_INT)
         return -EINVAL;
     doc->vars[var - 1U].bound = true;
     g->pub.bind[what] = var;
     return 0;
 }
 
-dmvsi_handler_t doc_add_handler(dmvsi_doc_t doc, const dmvsi_action_t* actions, uint32_t count)
+static bool is_if(uint8_t kind)
 {
-    int32_t depth = 0;
+    return kind == DMVSI_ACT_IF_EQ || kind == DMVSI_ACT_IF_NE || (kind >= DMVSI_ACT_IF_LT && kind <= DMVSI_ACT_IF_GE);
+}
+
+/* An action fits the document: its variables (of the kinds it takes), its handler */
+static bool action_valid(const dmvsi_doc_t doc, dmvsi_handler_t self, const dmvsi_action_t* a)
+{
+    switch (a->kind)
+    {
+        case DMVSI_ACT_END: case DMVSI_ACT_ELSE: case DMVSI_ACT_LOOP: case DMVSI_ACT_BREAK: case DMVSI_ACT_CONTINUE:
+        case DMVSI_ACT_RETURN:
+            return true;
+        case DMVSI_ACT_CALL:
+            return a->handler != 0 && a->handler <= doc->handler_count && a->handler != self;   /* Not itself */
+        default:
+            break;
+    }
+    if (a->kind > DMVSI_ACT_FORMAT || a->var == 0 || a->var > doc->var_count ||
+        (a->operand > doc->var_count && a->operand != DMVSI_VAR_TIME))
+        return false;
+    bool text = doc->vars[a->var - 1U].kind == DMVSI_VAR_TEXT;
+    uint8_t operand = (a->operand == DMVSI_VAR_TIME) ? DMVSI_VAR_INT :
+                      (a->operand != 0) ? doc->vars[a->operand - 1U].kind : (text ? DMVSI_VAR_TEXT : DMVSI_VAR_INT);
+    switch (a->kind)
+    {
+        case DMVSI_ACT_SET:
+        case DMVSI_ACT_APPEND:
+            if (text)
+                return operand == DMVSI_VAR_TEXT && (a->operand != 0 || a->text != NULL);
+            return a->kind == DMVSI_ACT_SET && operand == DMVSI_VAR_INT;
+        case DMVSI_ACT_FORMAT:
+            return text && a->text != NULL && operand == DMVSI_VAR_INT;
+        case DMVSI_ACT_ANIMATE:
+            return !text && a->operand == 0;
+        default:
+            return !text && operand == DMVSI_VAR_INT;   /* TOGGLE, the IFs, arithmetic: integers */
+    }
+}
+
+/* Its blocks nest: IF [ELSE] END, LOOP END; BREAK / CONTINUE inside a LOOP */
+static bool blocks_valid(const dmvsi_action_t* actions, uint32_t count)
+{
+    char stack[MAX_NESTING];
+    uint32_t depth = 0, loops = 0;
     for (uint32_t i = 0; i < count; i++)
     {
-        const dmvsi_action_t* a = &actions[i];
-        if (a->kind > DMVSI_ACT_END || (a->kind != DMVSI_ACT_END && (a->var == 0 || a->var > doc->var_count)))
-            return 0;
-        depth += (a->kind == DMVSI_ACT_IF_EQ || a->kind == DMVSI_ACT_IF_NE) ? 1 : (a->kind == DMVSI_ACT_END) ? -1 : 0;
-        if (depth < 0)
-            return 0;
+        uint8_t k = actions[i].kind;
+        if (is_if(k) || k == DMVSI_ACT_LOOP)
+        {
+            if (depth >= MAX_NESTING)
+                return false;
+            stack[depth++] = (k == DMVSI_ACT_LOOP) ? 'L' : 'I';
+            loops += (k == DMVSI_ACT_LOOP) ? 1U : 0U;
+        }
+        else if (k == DMVSI_ACT_ELSE)
+        {
+            if (depth == 0 || stack[depth - 1U] != 'I')
+                return false;
+            stack[depth - 1U] = 'E';                /* One ELSE per IF */
+        }
+        else if (k == DMVSI_ACT_END)
+        {
+            if (depth == 0)
+                return false;
+            loops -= (stack[--depth] == 'L') ? 1U : 0U;
+        }
+        else if ((k == DMVSI_ACT_BREAK || k == DMVSI_ACT_CONTINUE) && loops == 0)
+            return false;
     }
-    if (depth != 0 || doc->handler_count >= 0xFFFEu ||
+    return depth == 0;
+}
+
+dmvsi_handler_t doc_new_handler(dmvsi_doc_t doc)
+{
+    if (doc->handler_count >= 0xFFFEu ||
         !grow((void**)&doc->handlers, doc->handler_count, &doc->handler_capacity, sizeof(handler_t)))
         return 0;
     handler_t* h = &doc->handlers[doc->handler_count];
-    h->actions = (count > 0) ? Dmod_Malloc(count * sizeof(dmvsi_action_t)) : NULL;
-    if (count > 0 && h->actions == NULL)
-        return 0;
-    if (count > 0)
-        memcpy(h->actions, actions, count * sizeof(dmvsi_action_t));
-    h->count = count;
+    memset(h, 0, sizeof(*h));
     doc->handler_count++;
     return (dmvsi_handler_t)doc->handler_count;
+}
+
+int doc_set_handler(dmvsi_doc_t doc, dmvsi_handler_t handler, const dmvsi_action_t* actions, uint32_t count)
+{
+    if (handler == 0 || handler > doc->handler_count || doc->handlers[handler - 1U].made ||
+        (actions == NULL && count != 0) || !blocks_valid(actions, count))
+        return -EINVAL;
+    for (uint32_t i = 0; i < count; i++)
+    {
+        if (!action_valid(doc, handler, &actions[i]))
+            return -EINVAL;
+    }
+    dmvsi_action_t* copy = (count > 0) ? Dmod_Malloc(count * sizeof(dmvsi_action_t)) : NULL;
+    if (count > 0 && copy == NULL)
+        return -ENOMEM;
+    for (uint32_t i = 0; i < count; i++)
+    {
+        copy[i] = actions[i];
+        copy[i].text = NULL;
+        if (actions[i].text != NULL && (copy[i].text = copy_string(actions[i].text, strlen(actions[i].text))) == NULL)
+        {
+            for (uint32_t k = 0; k < i; k++)
+                Dmod_Free((char*)copy[k].text);
+            Dmod_Free(copy);
+            return -ENOMEM;
+        }
+    }
+    handler_t* h = &doc->handlers[handler - 1U];
+    h->actions = copy;
+    h->count = count;
+    h->made = true;
+    return 0;
+}
+
+dmvsi_handler_t doc_add_handler(dmvsi_doc_t doc, const dmvsi_action_t* actions, uint32_t count)
+{
+    dmvsi_handler_t h = doc_new_handler(doc);
+    if (h != 0 && doc_set_handler(doc, h, actions, count) != 0)
+    {
+        doc->handler_count--;                       /* Not made: forget it */
+        return 0;
+    }
+    return h;
+}
+
+int doc_add_timer(dmvsi_doc_t doc, uint16_t ms, dmvsi_handler_t handler)
+{
+    if (ms < 10u || handler == 0 || handler > doc->handler_count)
+        return -EINVAL;
+    if (!grow((void**)&doc->timers, doc->timer_count, &doc->timer_capacity, sizeof(timer_entry_t)))
+        return -ENOMEM;
+    doc->timers[doc->timer_count].ms = ms;
+    doc->timers[doc->timer_count].handler = handler;
+    doc->timer_count++;
+    return 0;
 }
 
 int doc_on_click(dmvsi_doc_t doc, dmvsi_handler_t handler)

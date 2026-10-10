@@ -48,17 +48,48 @@ each channel on its own - a converter whose source interpolates otherwise
 
 ## Behaviour (converters)
 
-What a page does when it is used - switching screens, toggling things -
-is variables, groups bound to them and handlers of clicks:
+What a page does when it is used - switching screens, toggling things,
+counting, showing text - is variables, groups bound to them, and handlers
+of clicks, timers and the view being shown:
 
 | Function | |
 |----------|-|
 | `dmvsi_var_t dmvsi_add_var(doc, name, initial)` | An integer variable (its name made an identifier, unique) |
-| `dmvsi_bind(doc, what, var)` | The innermost open group's `DMVSI_BIND_X` / `_Y` (a position on the screen, in units - the group's rectangle's) or `_OPACITY` (0 ... 255) is the variable's value. A bound group is kept while it is off the screen |
-| `dmvsi_handler_t dmvsi_add_handler(doc, actions, count)` | A handler: `DMVSI_ACT_SET`, `_ANIMATE` (to `value` in `duration` ms, eased by a CSS `cubic-bezier`, 1/1000), `_TOGGLE`, `_IF_EQ` / `_IF_NE` ... `_END` |
+| `dmvsi_var_t dmvsi_add_text_var(doc, name, size, initial)` | A text variable of up to `size` bytes (1 ... 1024) |
+| `dmvsi_bind(doc, what, var)` | The innermost open group's `DMVSI_BIND_X` / `_Y` (a position on the screen, in units - the group's rectangle's), `_OPACITY` (0 ... 255) or `_W` / `_H` (its size in pixels, as a handler computes it) is the integer variable's value. A bound group is kept while it is off the screen |
+| `dmvsi_handler_t dmvsi_add_handler(doc, actions, count)` | A handler: its actions, run in order (below) |
+| `dmvsi_new_handler(doc)`, `dmvsi_set_handler(doc, h, actions, count)` | The same in two steps - for handlers that `CALL` it before it is made |
+| `dmvsi_add_timer(doc, ms, handler)` | Run it every `ms` milliseconds (10 ...) while the view is shown |
+| `dmvsi_set_init(doc, handler)` | Run it once when the view is shown, before it is drawn |
 | `dmvsi_show_when(doc, var, value)` | Show the innermost open group only while `var == value` - also `DMVSI_VAR_PRESSED`, whether the box it is in is pressed; up to `DMVSI_MAX_SHOW`, all hold. An element's looks (one per state) are groups shown on their conditions |
 | `dmvsi_on_click(doc, handler)` | Run it when the innermost open group is clicked (its rectangle: at least the one it was given) |
-| `dmvsi_var_at(doc, i, &name, &initial)`, `dmvsi_handler_actions(doc, h, &actions)` | Reading them (writers); a group node's `bind[]` and `click` |
+| `dmvsi_var_at(doc, i, &name, &initial)`, `dmvsi_var_info(doc, var, &info)`, `dmvsi_handler_actions(doc, h, &actions)`, `dmvsi_timer_at(doc, i, &ms, &h)`, `dmvsi_init_handler(doc)` | Reading them (writers); a group node's `bind[]` and `click` |
+
+A text node shows a text variable when its `var` is set: `text` is the
+variable's initial text (what the line is measured by), `chars` every
+character it may show (added to the font), `width` / `align`
+(`DMVSI_TEXT_LEFT` / `_CENTER` / `_RIGHT`) where in the line it is put as
+its length changes.
+
+### Actions
+
+`dmvsi_action_t`: `kind`, `var`, and the operand - `operand` (a variable of
+the same kind as `var`, or `DMVSI_VAR_TIME`: the milliseconds since the view
+was shown) when it is set, else `value` (an integer) or `text` (copied). Blocks nest: `IF ... [ELSE] ... END`, `LOOP ... END`.
+
+| Kind | |
+|------|-|
+| `SET` | `var` = the operand (a text variable: its text) |
+| `ANIMATE` | `var` goes to `value` in `duration` ms, eased by a CSS `cubic-bezier` (`easing`, 1/1000) |
+| `TOGGLE` | `var` = `var` == 0 ? 1 : 0 |
+| `ADD`, `SUB`, `MUL`, `DIV`, `MOD`, `MIN`, `MAX` | `var` = `var` op the operand (32-bit integers, wrapping; `DIV` toward zero; by 0: 0) |
+| `IF_EQ`, `IF_NE`, `IF_LT`, `IF_LE`, `IF_GT`, `IF_GE` | The actions up to its `ELSE` / `END` only when `var` op the operand holds (integers) |
+| `ELSE` | What an `IF` does when it does not hold, up to its `END` |
+| `LOOP`, `BREAK`, `CONTINUE` | The actions up to its `END` again and again; out of / to the start of the innermost `LOOP` |
+| `CALL` | Run `handler` (not itself), then go on |
+| `RETURN` | Out of the handler |
+| `APPEND` | Text `var` += the operand's text |
+| `FORMAT` | Text `var` = `text` (one `%d` / `%x`, a width: `%02d`) with the operand (an integer) |
 
 ## Fonts
 

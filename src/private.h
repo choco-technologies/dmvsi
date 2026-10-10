@@ -48,15 +48,28 @@ struct node
 typedef struct
 {
     char            name[MAX_VAR_NAME];
+    uint8_t         kind;               /* DMVSI_VAR_* */
     int32_t         initial;
+    char*           text;               /* DMVSI_VAR_TEXT: the initial text */
+    uint16_t        size;
     bool            bound;
 } var_t;
 
 typedef struct
 {
-    dmvsi_action_t* actions;
+    dmvsi_action_t* actions;            /* Their texts are copies, freed with them */
     uint32_t        count;
+    bool            made;               /* false: dmvsi_new_handler(), its actions are not there yet */
 } handler_t;
+
+typedef struct
+{
+    uint16_t        ms;
+    dmvsi_handler_t handler;
+} timer_entry_t;
+
+#define MAX_TEXT_VAR    1024u           /* Bytes a text variable holds at most */
+#define MAX_NESTING     32u             /* Blocks of a handler nested at most */
 
 struct dmvsi_doc
 {
@@ -76,6 +89,10 @@ struct dmvsi_doc
     handler_t*      handlers;
     uint32_t        handler_count;
     uint32_t        handler_capacity;
+    timer_entry_t*  timers;
+    uint32_t        timer_count;
+    uint32_t        timer_capacity;
+    dmvsi_handler_t init;
 };
 
 #define DOC_MAGIC       0x44535649u     /* 'IVSD' */
@@ -101,6 +118,10 @@ int             doc_begin_group(dmvsi_doc_t doc, const dmvsi_group_t* group);
 int             doc_end_group(dmvsi_doc_t doc);
 int             doc_add(dmvsi_doc_t doc, uint8_t kind, const void* shape);
 dmvsi_var_t     doc_add_var(dmvsi_doc_t doc, const char* name, int32_t initial);
+dmvsi_var_t     doc_add_text_var(dmvsi_doc_t doc, const char* name, uint16_t size, const char* initial);
+dmvsi_handler_t doc_new_handler(dmvsi_doc_t doc);
+int             doc_set_handler(dmvsi_doc_t doc, dmvsi_handler_t handler, const dmvsi_action_t* actions, uint32_t count);
+int             doc_add_timer(dmvsi_doc_t doc, uint16_t ms, dmvsi_handler_t handler);
 int             doc_bind(dmvsi_doc_t doc, uint8_t what, dmvsi_var_t var);
 dmvsi_handler_t doc_add_handler(dmvsi_doc_t doc, const dmvsi_action_t* actions, uint32_t count);
 int             doc_on_click(dmvsi_doc_t doc, dmvsi_handler_t handler);
