@@ -173,6 +173,7 @@ typedef uint16_t dmvsi_handler_t;
 #define DMVSI_ACT_RETURN        22u     /**< Out of the handler */
 #define DMVSI_ACT_APPEND        23u     /**< Text var += the operand's text */
 #define DMVSI_ACT_FORMAT        24u     /**< Text var = `text` (one %d / %x, a width: %02d) with the operand (an integer) */
+#define DMVSI_ACT_EMIT          25u     /**< Send the event `text` with the operand (an integer; `var` unused) to the application that shows the view */
 
 /** One action of a handler */
 typedef struct
@@ -457,6 +458,28 @@ dmod_dmvsi_api(1.0, int, _set_init, ( dmvsi_doc_t doc, dmvsi_handler_t handler )
  * @return 0, -EINVAL
  */
 dmod_dmvsi_api(1.0, int, _show_when, ( dmvsi_doc_t doc, dmvsi_var_t var, int32_t value ));
+
+/**
+ * @brief Make a variable a property of the view: the application that shows
+ *        the view reads and sets it by @p name (copied; letters, digits, '_',
+ *        '.', '-'; unique among the properties). A property can be bound
+ *        or shown on like any variable.
+ * @return 0, -EINVAL (no such variable, a bad or taken name, a property already), -ENOMEM
+ */
+dmod_dmvsi_api(1.0, int, _set_prop, ( dmvsi_doc_t doc, dmvsi_var_t var, const char* name ));
+
+/** @brief The property name of a variable, NULL when it is none. */
+dmod_dmvsi_api(1.0, const char*, _var_prop, ( dmvsi_doc_t doc, dmvsi_var_t var ));
+
+/**
+ * @brief Run a handler when the application changed a property (after the
+ *        variable has its new value).
+ * @return 0, -EINVAL (not a property, no such handler), -ENOMEM
+ */
+dmod_dmvsi_api(1.0, int, _on_change, ( dmvsi_doc_t doc, dmvsi_var_t var, dmvsi_handler_t handler ));
+
+/** @brief The change handlers: the @p index -th (0 ...), false past the last. */
+dmod_dmvsi_api(1.0, bool, _change_at, ( dmvsi_doc_t doc, uint32_t index, dmvsi_var_t* var, dmvsi_handler_t* handler ));
 
 /** @brief Run a handler when the innermost open group is clicked. @return 0, -EINVAL */
 dmod_dmvsi_api(1.0, int, _on_click, ( dmvsi_doc_t doc, dmvsi_handler_t handler ));

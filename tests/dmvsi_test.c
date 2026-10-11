@@ -352,6 +352,46 @@ DMOD_TEST_STEP(dmvsi_describes_code)
     dmvsi_free(doc);
 }
 
+DMOD_TEST_STEP(dmvsi_describes_the_channel)
+{
+    dmvsi_doc_t doc = dmvsi_new();
+    DMOD_TEST_EXPECT_EQ(dmvsi_set_view(doc, "v", 100, 100), 0);
+    dmvsi_var_t title = dmvsi_add_text_var(doc, "title", 32, "-");
+    dmvsi_var_t pos = dmvsi_add_var(doc, "pos", 0);
+    dmvsi_var_t plain = dmvsi_add_var(doc, "plain", 0);
+
+    /* Properties: a name each, unique, made of what a view's name may be */
+    DMOD_TEST_EXPECT_EQ(dmvsi_set_prop(doc, title, "player.title"), 0);
+    DMOD_TEST_EXPECT_EQ(dmvsi_set_prop(doc, pos, "position"), 0);
+    DMOD_TEST_EXPECT_EQ(dmvsi_set_prop(doc, plain, "position"), -EINVAL);      /* taken */
+    DMOD_TEST_EXPECT_EQ(dmvsi_set_prop(doc, plain, "a b"), -EINVAL);
+    DMOD_TEST_EXPECT_EQ(dmvsi_set_prop(doc, plain, ""), -EINVAL);
+    DMOD_TEST_EXPECT_EQ(dmvsi_set_prop(doc, pos, "again"), -EINVAL);           /* a property already */
+    DMOD_TEST_EXPECT_EQ(dmvsi_set_prop(doc, 9, "x"), -EINVAL);
+    DMOD_TEST_EXPECT_TRUE(strcmp(dmvsi_var_prop(doc, title), "player.title") == 0);
+    DMOD_TEST_EXPECT_NULL(dmvsi_var_prop(doc, plain));
+
+    /* EMIT: a name and an integer */
+    dmvsi_handler_t moved = one(doc, DMVSI_ACT_ADD, plain, 0, 1, NULL);
+    DMOD_TEST_EXPECT_TRUE(moved != 0);
+    DMOD_TEST_EXPECT_TRUE(one(doc, DMVSI_ACT_EMIT, 0, 0, 0, "next") != 0);
+    DMOD_TEST_EXPECT_TRUE(one(doc, DMVSI_ACT_EMIT, 0, pos, 0, "seek") != 0);
+    DMOD_TEST_EXPECT_EQ(one(doc, DMVSI_ACT_EMIT, 0, title, 0, "seek"), 0);      /* a text */
+    DMOD_TEST_EXPECT_EQ(one(doc, DMVSI_ACT_EMIT, 0, 0, 0, NULL), 0);            /* no name */
+    DMOD_TEST_EXPECT_EQ(one(doc, DMVSI_ACT_EMIT, 0, 0, 0, ""), 0);
+
+    /* Change handlers: of properties only */
+    DMOD_TEST_EXPECT_EQ(dmvsi_on_change(doc, pos, moved), 0);
+    DMOD_TEST_EXPECT_EQ(dmvsi_on_change(doc, plain, moved), -EINVAL);
+    DMOD_TEST_EXPECT_EQ(dmvsi_on_change(doc, pos, 99), -EINVAL);
+    dmvsi_var_t var = 0;
+    dmvsi_handler_t handler = 0;
+    DMOD_TEST_EXPECT_TRUE(dmvsi_change_at(doc, 0, &var, &handler));
+    DMOD_TEST_EXPECT_TRUE(var == pos && handler == moved);
+    DMOD_TEST_EXPECT_FALSE(dmvsi_change_at(doc, 1, &var, &handler));
+    dmvsi_free(doc);
+}
+
 DMOD_TEST_STEP(dmvsi_keeps_images)
 {
     dmvsi_doc_t doc = dmvsi_new();
