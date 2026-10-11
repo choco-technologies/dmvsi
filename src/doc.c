@@ -91,9 +91,13 @@ void doc_free(dmvsi_doc_t doc)
     }
     Dmod_Free(doc->handlers);
     for (uint32_t i = 0; i < doc->var_count; i++)
+    {
         Dmod_Free(doc->vars[i].text);
+        Dmod_Free(doc->vars[i].prop);
+    }
     Dmod_Free(doc->vars);
     Dmod_Free(doc->timers);
+    Dmod_Free(doc->changes);
     Dmod_Free(doc->name);
     doc->magic = 0;
     Dmod_Free(doc);
@@ -388,6 +392,13 @@ static bool action_valid(const dmvsi_doc_t doc, dmvsi_handler_t self, const dmvs
         default:
             break;
     }
+    if (a->kind == DMVSI_ACT_EMIT)
+    {
+        /* A name, an integer operand */
+        return a->text != NULL && a->text[0] != '\0' &&
+               (a->operand == 0 || a->operand == DMVSI_VAR_TIME ||
+                (a->operand <= doc->var_count && doc->vars[a->operand - 1U].kind == DMVSI_VAR_INT));
+    }
     if (a->kind > DMVSI_ACT_FORMAT || a->var == 0 || a->var > doc->var_count ||
         (a->operand > doc->var_count && a->operand != DMVSI_VAR_TIME))
         return false;
@@ -506,6 +517,39 @@ int doc_add_timer(dmvsi_doc_t doc, uint16_t ms, dmvsi_handler_t handler)
     doc->timers[doc->timer_count].ms = ms;
     doc->timers[doc->timer_count].handler = handler;
     doc->timer_count++;
+    return 0;
+}
+
+int doc_set_prop(dmvsi_doc_t doc, dmvsi_var_t var, const char* name)
+{
+    if (var == 0 || var > doc->var_count || name == NULL || name[0] == '\0' || doc->vars[var - 1U].prop != NULL)
+        return -EINVAL;
+    for (const char* s = name; *s != '\0'; s++)
+    {
+        char c = *s;
+        if (!((c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') || (c >= '0' && c <= '9') || c == '_' || c == '.' || c == '-'))
+            return -EINVAL;
+    }
+    for (uint32_t i = 0; i < doc->var_count; i++)
+    {
+        if (doc->vars[i].prop != NULL && strcmp(doc->vars[i].prop, name) == 0)
+            return -EINVAL;
+    }
+    if ((doc->vars[var - 1U].prop = copy_string(name, strlen(name))) == NULL)
+        return -ENOMEM;
+    return 0;
+}
+
+int doc_on_change(dmvsi_doc_t doc, dmvsi_var_t var, dmvsi_handler_t handler)
+{
+    if (var == 0 || var > doc->var_count || doc->vars[var - 1U].prop == NULL ||
+        handler == 0 || handler > doc->handler_count)
+        return -EINVAL;
+    if (!grow((void**)&doc->changes, doc->change_count, &doc->change_capacity, sizeof(change_entry_t)))
+        return -ENOMEM;
+    doc->changes[doc->change_count].var = var;
+    doc->changes[doc->change_count].handler = handler;
+    doc->change_count++;
     return 0;
 }
 

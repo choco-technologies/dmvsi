@@ -332,6 +332,32 @@ dmod_dmvsi_api_declaration(1.0, bool, _timer_at, ( dmvsi_doc_t doc, uint32_t ind
     return true;
 }
 
+dmod_dmvsi_api_declaration(1.0, int, _set_prop, ( dmvsi_doc_t doc, dmvsi_var_t var, const char* name ))
+{
+    return doc_valid(doc) ? doc_set_prop(doc, var, name) : -EINVAL;
+}
+
+dmod_dmvsi_api_declaration(1.0, const char*, _var_prop, ( dmvsi_doc_t doc, dmvsi_var_t var ))
+{
+    return (doc_valid(doc) && var != 0 && var <= doc->var_count) ? doc->vars[var - 1U].prop : NULL;
+}
+
+dmod_dmvsi_api_declaration(1.0, int, _on_change, ( dmvsi_doc_t doc, dmvsi_var_t var, dmvsi_handler_t handler ))
+{
+    return doc_valid(doc) ? doc_on_change(doc, var, handler) : -EINVAL;
+}
+
+dmod_dmvsi_api_declaration(1.0, bool, _change_at, ( dmvsi_doc_t doc, uint32_t index, dmvsi_var_t* var, dmvsi_handler_t* handler ))
+{
+    if (!doc_valid(doc) || index >= doc->change_count)
+        return false;
+    if (var != NULL)
+        *var = doc->changes[index].var;
+    if (handler != NULL)
+        *handler = doc->changes[index].handler;
+    return true;
+}
+
 dmod_dmvsi_api_declaration(1.0, dmvsi_handler_t, _init_handler, ( dmvsi_doc_t doc ))
 {
     return doc_valid(doc) ? doc->init : 0;

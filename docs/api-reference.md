@@ -63,7 +63,9 @@ of clicks, timers and the view being shown:
 | `dmvsi_set_init(doc, handler)` | Run it once when the view is shown, before it is drawn |
 | `dmvsi_show_when(doc, var, value)` | Show the innermost open group only while `var == value` - also `DMVSI_VAR_PRESSED`, whether the box it is in is pressed; up to `DMVSI_MAX_SHOW`, all hold. An element's looks (one per state) are groups shown on their conditions |
 | `dmvsi_on_click(doc, handler)` | Run it when the innermost open group is clicked (its rectangle: at least the one it was given) |
-| `dmvsi_var_at(doc, i, &name, &initial)`, `dmvsi_var_info(doc, var, &info)`, `dmvsi_handler_actions(doc, h, &actions)`, `dmvsi_timer_at(doc, i, &ms, &h)`, `dmvsi_init_handler(doc)` | Reading them (writers); a group node's `bind[]` and `click` |
+| `dmvsi_set_prop(doc, var, name)` | Make the variable a **property**: the application that shows the view reads and sets it by `name` (letters, digits, `_`, `.`, `-`; unique) - dmview's `.prop` |
+| `dmvsi_on_change(doc, var, handler)` | Run it when the application changed the property (after it has the new value) - dmview's `.change` |
+| `dmvsi_var_at(doc, i, &name, &initial)`, `dmvsi_var_info(doc, var, &info)`, `dmvsi_var_prop(doc, var)`, `dmvsi_handler_actions(doc, h, &actions)`, `dmvsi_timer_at(doc, i, &ms, &h)`, `dmvsi_change_at(doc, i, &var, &h)`, `dmvsi_init_handler(doc)` | Reading them (writers); a group node's `bind[]` and `click` |
 
 A text node shows a text variable when its `var` is set: `text` is the
 variable's initial text (what the line is measured by), `chars` every
@@ -88,6 +90,7 @@ was shown) when it is set, else `value` (an integer) or `text` (copied). Blocks 
 | `LOOP`, `BREAK`, `CONTINUE` | The actions up to its `END` again and again; out of / to the start of the innermost `LOOP` |
 | `CALL` | Run `handler` (not itself), then go on |
 | `RETURN` | Out of the handler |
+| `EMIT` | Send the event `text` with the operand (an integer; `var` is not used) to the application that shows the view - dmview's `EMIT` |
 | `APPEND` | Text `var` += the operand's text |
 | `FORMAT` | Text `var` = `text` (one `%d` / `%x`, a width: `%02d`) with the operand (an integer) |
 

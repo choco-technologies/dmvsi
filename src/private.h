@@ -53,6 +53,7 @@ typedef struct
     char*           text;               /* DMVSI_VAR_TEXT: the initial text */
     uint16_t        size;
     bool            bound;
+    char*           prop;               /* Its property name (dmvsi_set_prop()), NULL */
 } var_t;
 
 typedef struct
@@ -67,6 +68,12 @@ typedef struct
     uint16_t        ms;
     dmvsi_handler_t handler;
 } timer_entry_t;
+
+typedef struct
+{
+    dmvsi_var_t     var;
+    dmvsi_handler_t handler;
+} change_entry_t;
 
 #define MAX_TEXT_VAR    1024u           /* Bytes a text variable holds at most */
 #define MAX_NESTING     32u             /* Blocks of a handler nested at most */
@@ -92,6 +99,9 @@ struct dmvsi_doc
     timer_entry_t*  timers;
     uint32_t        timer_count;
     uint32_t        timer_capacity;
+    change_entry_t* changes;            /* dmvsi_on_change() */
+    uint32_t        change_count;
+    uint32_t        change_capacity;
     dmvsi_handler_t init;
 };
 
@@ -124,6 +134,8 @@ int             doc_set_handler(dmvsi_doc_t doc, dmvsi_handler_t handler, const 
 int             doc_add_timer(dmvsi_doc_t doc, uint16_t ms, dmvsi_handler_t handler);
 int             doc_bind(dmvsi_doc_t doc, uint8_t what, dmvsi_var_t var);
 dmvsi_handler_t doc_add_handler(dmvsi_doc_t doc, const dmvsi_action_t* actions, uint32_t count);
+int             doc_set_prop(dmvsi_doc_t doc, dmvsi_var_t var, const char* name);
+int             doc_on_change(dmvsi_doc_t doc, dmvsi_var_t var, dmvsi_handler_t handler);
 int             doc_on_click(dmvsi_doc_t doc, dmvsi_handler_t handler);
 int             doc_show_when(dmvsi_doc_t doc, dmvsi_var_t var, int32_t value);
 
