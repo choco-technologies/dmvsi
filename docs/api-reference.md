@@ -36,7 +36,13 @@ geometry) are 1/100 % (`DMVSI_PERCENT(n)`: 10000 is 100 %).
 | `dmvsi_add_frame(doc, frame)` | An outline `width` thick inside `rect` |
 | `dmvsi_add_shadow(doc, shadow)` | The shadow of a rounded rectangle `shape` (moved by its offset, grown by its spread) blurred with a Gaussian of `sigma`; shown outside `hole` - or inside it with `DMVSI_SHADOW_INSET`. A blurred element is a shadow with an empty hole |
 | `dmvsi_add_text(doc, text)` | A line of UTF-8 text: its pen at `x`, on `baseline`, in `font`, painted with `paint` |
-| `dmvsi_add_image(doc, image)` | An image file in `rect`; with `DMVSI_IMAGE_MASK` only its coverage, painted with `paint`. `width` x `height`: the size it is drawn at (scaled into it, its aspect kept; 0: its own), placed by `DMVSI_IMAGE_CENTER` / `_RIGHT` / `_MIDDLE` / `_BOTTOM` (else top left) and clipped to `rect`; `blur`: blurred with that standard deviation |
+| `dmvsi_add_image(doc, image)` | An image file in `rect`; with `DMVSI_IMAGE_MASK` only its coverage, painted with `paint`. `width` x `height`: the size it is drawn at (scaled into it, its aspect kept; 0: its own), placed by `DMVSI_IMAGE_CENTER` / `_RIGHT` / `_MIDDLE` / `_BOTTOM` (else top left) and clipped to `rect`; `blur`: blurred with that standard deviation. `var`: a text variable that chooses the image while the view runs - its text names an image as the file name of `path` without its extension does, shown made as `path` is (see below) |
+
+An image chosen while the view runs (`var`, e.g. an album cover the
+application sets) cannot be made when the view is written: the writer
+(todmvs) tells the application which images to make - the sizes, blurs and
+cuts of `path`'s - and shows the one the text names. `path` is the image the
+view starts with, and what the text names first.
 
 A `dmvsi_paint_t` is a color (`DMVSI_PAINT_COLOR`, 0xAARRGGBB, not
 premultiplied) or a gradient placed on the shape as dmview places gradients:

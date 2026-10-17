@@ -287,6 +287,10 @@ typedef struct
     dmvsi_unit_t    blur;           /**< Blurred: the standard deviation of the Gaussian blur, 0: sharp */
     dmvsi_unit_t    radius;         /**< Shown in a rounded box (border-radius, overflow: hidden): what of it is
                                          outside `rect`'s corners of this radius is not seen; 0: square */
+    dmvsi_var_t     var;            /**< A text variable (a property) that chooses the image while the view runs,
+                                         0: none. Its text names an image as `path`'s file name without its
+                                         extension does - the writer shows that image made as this one is
+                                         (its size, blur, cut); `path` is the image it starts with */
 } dmvsi_image_t;
 
 /** A node of a document, as the writer reads it (dmvsi_root()). */

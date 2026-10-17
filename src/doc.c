@@ -257,7 +257,8 @@ int doc_add(dmvsi_doc_t doc, uint8_t kind, const void* shape)
         case DMVSI_NODE_IMAGE:
         {
             const dmvsi_image_t* im = shape;
-            if (im->path == NULL || !paint_valid(&im->paint))
+            if (im->path == NULL || !paint_valid(&im->paint) ||
+                (im->var != 0 && (im->var > doc->var_count || doc->vars[im->var - 1U].kind != DMVSI_VAR_TEXT)))
                 return -EINVAL;
             size_t length = strlen(im->path);
             if ((n = new_node(doc, kind, length + 1U)) == NULL)
