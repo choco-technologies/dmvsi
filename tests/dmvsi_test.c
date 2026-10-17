@@ -419,6 +419,18 @@ DMOD_TEST_STEP(dmvsi_keeps_images)
         DMOD_TEST_EXPECT_EQ(n->u.image.radius, DMVSI_PX(32));
         DMOD_TEST_EXPECT_EQ(n->u.image.width, DMVSI_PX(96));
     }
+
+    /* Chosen while the view runs: by a text variable only */
+    dmvsi_var_t cover = dmvsi_add_text_var(doc, "cover", 64, "cover");
+    dmvsi_var_t number = dmvsi_add_var(doc, "number", 0);
+    im.var = number;
+    DMOD_TEST_EXPECT_EQ(dmvsi_add_image(doc, &im), -EINVAL);
+    im.var = cover + number;                        /* (no such variable) */
+    DMOD_TEST_EXPECT_EQ(dmvsi_add_image(doc, &im), -EINVAL);
+    im.var = cover;
+    DMOD_TEST_EXPECT_EQ(dmvsi_add_image(doc, &im), 0);
+    n = (n != NULL) ? n->next : NULL;
+    DMOD_TEST_EXPECT_TRUE(n != NULL && n->kind == DMVSI_NODE_IMAGE && n->u.image.var == cover);
     dmvsi_free(doc);
 }
 
