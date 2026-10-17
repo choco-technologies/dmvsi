@@ -137,6 +137,7 @@ dmvsi_handler_t doc_add_handler(dmvsi_doc_t doc, const dmvsi_action_t* actions, 
 int             doc_set_prop(dmvsi_doc_t doc, dmvsi_var_t var, const char* name);
 int             doc_on_change(dmvsi_doc_t doc, dmvsi_var_t var, dmvsi_handler_t handler);
 int             doc_on_click(dmvsi_doc_t doc, dmvsi_handler_t handler);
+int             doc_on_scroll(dmvsi_doc_t doc, dmvsi_handler_t handler);
 int             doc_show_when(dmvsi_doc_t doc, dmvsi_var_t var, int32_t value);
 
 #endif /* DMVSI_PRIVATE_H */

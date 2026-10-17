@@ -421,3 +421,40 @@ DMOD_TEST_STEP(dmvsi_keeps_images)
     }
     dmvsi_free(doc);
 }
+
+/* Scrolling: a group's scroll handler, where it is (SCROLL_Y operand), scrolling a group by its name */
+DMOD_TEST_STEP(dmvsi_describes_scrolling)
+{
+    dmvsi_doc_t doc = dmvsi_new();
+    DMOD_TEST_EXPECT_EQ(dmvsi_set_view(doc, "v", 100, 100), 0);
+    dmvsi_var_t at = dmvsi_add_var(doc, "at", 0);
+    dmvsi_var_t title = dmvsi_add_text_var(doc, "title", 16, "");
+
+    dmvsi_handler_t seen = one(doc, DMVSI_ACT_SET, at, DMVSI_VAR_SCROLL_Y, 0, NULL);       /* at = where it is */
+    DMOD_TEST_EXPECT_TRUE(seen != 0);
+    DMOD_TEST_EXPECT_EQ(one(doc, DMVSI_ACT_SET, title, DMVSI_VAR_SCROLL_Y, 0, NULL), 0);    /* not a text */
+    DMOD_TEST_EXPECT_TRUE(one(doc, DMVSI_ACT_SCROLL_Y, 0, at, 0, "list") != 0);             /* to a variable */
+    DMOD_TEST_EXPECT_TRUE(one(doc, DMVSI_ACT_SCROLL_Y, 0, 0, 40, "list") != 0);             /* to a number */
+    DMOD_TEST_EXPECT_EQ(one(doc, DMVSI_ACT_SCROLL_Y, 0, 0, 40, NULL), 0);                   /* no group */
+    DMOD_TEST_EXPECT_EQ(one(doc, DMVSI_ACT_SCROLL_Y, 0, title, 0, "list"), 0);              /* a text */
+
+    dmvsi_group_t plain;
+    memset(&plain, 0, sizeof(plain));
+    plain.rect = (dmvsi_rect_t){ 0, 0, DMVSI_PX(50), DMVSI_PX(50) };
+    plain.opacity = 255;
+    DMOD_TEST_EXPECT_EQ(dmvsi_begin_group(doc, &plain), 0);
+    DMOD_TEST_EXPECT_EQ(dmvsi_on_scroll(doc, seen), -EINVAL);                               /* it does not scroll */
+    DMOD_TEST_EXPECT_EQ(dmvsi_end_group(doc), 0);
+
+    dmvsi_group_t list = plain;
+    list.flags = DMVSI_GROUP_CLIP;
+    list.scroll_h = DMVSI_PX(200);
+    list.name = "list";
+    DMOD_TEST_EXPECT_EQ(dmvsi_on_scroll(doc, seen), -EINVAL);                               /* the root */
+    DMOD_TEST_EXPECT_EQ(dmvsi_begin_group(doc, &list), 0);
+    DMOD_TEST_EXPECT_EQ(dmvsi_on_scroll(doc, seen), 0);
+    DMOD_TEST_EXPECT_EQ(dmvsi_end_group(doc), 0);
+    const dmvsi_node_t* g = dmvsi_root(doc)->first;
+    DMOD_TEST_EXPECT_TRUE(g != NULL && g->next != NULL && g->scrolled == 0 && g->next->scrolled == seen);
+    dmvsi_free(doc);
+}
