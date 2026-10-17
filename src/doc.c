@@ -392,18 +392,19 @@ static bool action_valid(const dmvsi_doc_t doc, dmvsi_handler_t self, const dmvs
         default:
             break;
     }
-    if (a->kind == DMVSI_ACT_EMIT)
+    bool builtin = a->operand == DMVSI_VAR_TIME || a->operand == DMVSI_VAR_SCROLL_Y;    /* Integers, read only */
+    if (a->kind == DMVSI_ACT_EMIT || a->kind == DMVSI_ACT_SCROLL_Y)
     {
-        /* A name, an integer operand */
+        /* A name (an event's, a group's), an integer operand */
         return a->text != NULL && a->text[0] != '\0' &&
-               (a->operand == 0 || a->operand == DMVSI_VAR_TIME ||
+               (a->operand == 0 || builtin ||
                 (a->operand <= doc->var_count && doc->vars[a->operand - 1U].kind == DMVSI_VAR_INT));
     }
     if (a->kind > DMVSI_ACT_FORMAT || a->var == 0 || a->var > doc->var_count ||
-        (a->operand > doc->var_count && a->operand != DMVSI_VAR_TIME))
+        (a->operand > doc->var_count && !builtin))
         return false;
     bool text = doc->vars[a->var - 1U].kind == DMVSI_VAR_TEXT;
-    uint8_t operand = (a->operand == DMVSI_VAR_TIME) ? DMVSI_VAR_INT :
+    uint8_t operand = builtin ? DMVSI_VAR_INT :
                       (a->operand != 0) ? doc->vars[a->operand - 1U].kind : (text ? DMVSI_VAR_TEXT : DMVSI_VAR_INT);
     switch (a->kind)
     {
@@ -559,6 +560,16 @@ int doc_on_click(dmvsi_doc_t doc, dmvsi_handler_t handler)
     if (g == NULL || g == doc->root || handler == 0 || handler > doc->handler_count)
         return -EINVAL;
     g->pub.click = handler;
+    return 0;
+}
+
+int doc_on_scroll(dmvsi_doc_t doc, dmvsi_handler_t handler)
+{
+    node_t* g = doc->current;
+    if (g == NULL || g == doc->root || handler == 0 || handler > doc->handler_count ||
+        (g->pub.u.group.scroll_w == 0 && g->pub.u.group.scroll_h == 0))
+        return -EINVAL;                             /* (a group that scrolls) */
+    g->pub.scrolled = handler;
     return 0;
 }
 

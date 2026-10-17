@@ -378,6 +378,11 @@ dmod_dmvsi_api_declaration(1.0, int, _on_click, ( dmvsi_doc_t doc, dmvsi_handler
     return doc_valid(doc) ? doc_on_click(doc, handler) : -EINVAL;
 }
 
+dmod_dmvsi_api_declaration(1.0, int, _on_scroll, ( dmvsi_doc_t doc, dmvsi_handler_t handler ))
+{
+    return doc_valid(doc) ? doc_on_scroll(doc, handler) : -EINVAL;
+}
+
 dmod_dmvsi_api_declaration(1.0, int, _show_when, ( dmvsi_doc_t doc, dmvsi_var_t var, int32_t value ))
 {
     return doc_valid(doc) ? doc_show_when(doc, var, value) : -EINVAL;
