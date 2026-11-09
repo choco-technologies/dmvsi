@@ -140,6 +140,9 @@ typedef struct
 /** An operand only: how far the group whose scroll handler runs is scrolled down, in pixels (dmview's $box.sy) - read, never set */
 #define DMVSI_VAR_SCROLL_Y      0xFFFDu
 
+/** An operand only: how far the group whose scroll handler runs is scrolled across, in pixels (dmview's $box.sx) - read, never set */
+#define DMVSI_VAR_SCROLL_X      0xFFFCu
+
 /** Conditions of a group being shown (dmvsi_show_when()), at most */
 #define DMVSI_MAX_SHOW          2u
 
@@ -178,6 +181,7 @@ typedef uint16_t dmvsi_handler_t;
 #define DMVSI_ACT_FORMAT        24u     /**< Text var = `text` (one %d / %x, a width: %02d) with the operand (an integer) */
 #define DMVSI_ACT_EMIT          25u     /**< Send the event `text` with the operand (an integer; `var` unused) to the application that shows the view */
 #define DMVSI_ACT_SCROLL_Y      26u     /**< Scroll the group named `text` down to the operand (pixels, an integer; across to 0; `var` unused) */
+#define DMVSI_ACT_SCROLL_X      27u     /**< Scroll the group named `text` across to the operand (pixels, an integer; down to 0; `var` unused) */
 
 /** One action of a handler */
 typedef struct
@@ -312,7 +316,7 @@ struct dmvsi_node
     dmvsi_rect_t        bounds;     /**< What the node paints (a shadow: all of its blur), as a whole */
     dmvsi_var_t         bind[DMVSI_BIND_COUNT];     /**< A group: the variables it is bound to (0: none) */
     dmvsi_handler_t     click;      /**< A group: run when it is clicked (0: none) */
-    dmvsi_handler_t     scrolled;   /**< A group that scrolls: run when it was scrolled (0: none) - DMVSI_VAR_SCROLL_Y is where */
+    dmvsi_handler_t     scrolled;   /**< A group that scrolls: run when it was scrolled (0: none) - DMVSI_VAR_SCROLL_Y and DMVSI_VAR_SCROLL_X are where */
     dmvsi_var_t         show_var[DMVSI_MAX_SHOW];   /**< A group: shown only while each var == show_value (0: no condition) */
     int32_t             show_value[DMVSI_MAX_SHOW];
 };
@@ -495,7 +499,7 @@ dmod_dmvsi_api(1.0, int, _on_click, ( dmvsi_doc_t doc, dmvsi_handler_t handler )
 
 /**
  * @brief Run a handler when the innermost open group - one that scrolls - was
- *        scrolled (dragged, DMVSI_ACT_SCROLL_Y): DMVSI_VAR_SCROLL_Y is how far.
+ *        scrolled (dragged, DMVSI_ACT_SCROLL_Y, DMVSI_ACT_SCROLL_X): DMVSI_VAR_SCROLL_Y and DMVSI_VAR_SCROLL_X are how far.
  * @return 0, -EINVAL
  */
 dmod_dmvsi_api(1.0, int, _on_scroll, ( dmvsi_doc_t doc, dmvsi_handler_t handler ));

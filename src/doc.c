@@ -393,8 +393,9 @@ static bool action_valid(const dmvsi_doc_t doc, dmvsi_handler_t self, const dmvs
         default:
             break;
     }
-    bool builtin = a->operand == DMVSI_VAR_TIME || a->operand == DMVSI_VAR_SCROLL_Y;    /* Integers, read only */
-    if (a->kind == DMVSI_ACT_EMIT || a->kind == DMVSI_ACT_SCROLL_Y)
+    bool builtin = a->operand == DMVSI_VAR_TIME || a->operand == DMVSI_VAR_SCROLL_Y ||
+                   a->operand == DMVSI_VAR_SCROLL_X;    /* Integers, read only */
+    if (a->kind == DMVSI_ACT_EMIT || a->kind == DMVSI_ACT_SCROLL_Y || a->kind == DMVSI_ACT_SCROLL_X)
     {
         /* A name (an event's, a group's), an integer operand */
         return a->text != NULL && a->text[0] != '\0' &&

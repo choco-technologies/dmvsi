@@ -449,6 +449,10 @@ DMOD_TEST_STEP(dmvsi_describes_scrolling)
     DMOD_TEST_EXPECT_TRUE(one(doc, DMVSI_ACT_SCROLL_Y, 0, 0, 40, "list") != 0);             /* to a number */
     DMOD_TEST_EXPECT_EQ(one(doc, DMVSI_ACT_SCROLL_Y, 0, 0, 40, NULL), 0);                   /* no group */
     DMOD_TEST_EXPECT_EQ(one(doc, DMVSI_ACT_SCROLL_Y, 0, title, 0, "list"), 0);              /* a text */
+    DMOD_TEST_EXPECT_TRUE(one(doc, DMVSI_ACT_SET, at, DMVSI_VAR_SCROLL_X, 0, NULL) != 0);   /* across: where it is */
+    DMOD_TEST_EXPECT_TRUE(one(doc, DMVSI_ACT_SCROLL_X, 0, at, 0, "pager") != 0);            /* across, to a variable */
+    DMOD_TEST_EXPECT_TRUE(one(doc, DMVSI_ACT_SCROLL_X, 0, 0, 240, "pager") != 0);           /* across, to a number */
+    DMOD_TEST_EXPECT_EQ(one(doc, DMVSI_ACT_SCROLL_X, 0, 0, 240, NULL), 0);                  /* no group */
 
     dmvsi_group_t plain;
     memset(&plain, 0, sizeof(plain));

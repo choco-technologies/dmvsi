@@ -84,8 +84,8 @@ its length changes.
 
 `dmvsi_action_t`: `kind`, `var`, and the operand - `operand` (a variable of
 the same kind as `var`, or `DMVSI_VAR_TIME`: the milliseconds since the view
-was shown, or `DMVSI_VAR_SCROLL_Y`: in a scroll handler, how far its group is
-scrolled down, in pixels) when it is set, else `value` (an integer) or `text` (copied). Blocks nest: `IF ... [ELSE] ... END`, `LOOP ... END`.
+was shown, or `DMVSI_VAR_SCROLL_Y` / `DMVSI_VAR_SCROLL_X`: in a scroll handler, how far its group is
+scrolled down / across, in pixels) when it is set, else `value` (an integer) or `text` (copied). Blocks nest: `IF ... [ELSE] ... END`, `LOOP ... END`.
 
 | Kind | |
 |------|-|
@@ -99,6 +99,7 @@ scrolled down, in pixels) when it is set, else `value` (an integer) or `text` (c
 | `CALL` | Run `handler` (not itself), then go on |
 | `RETURN` | Out of the handler |
 | `EMIT` | Send the event `text` with the operand (an integer; `var` is not used) to the application that shows the view - dmview's `EMIT` |
+| `SCROLL_X` | Scroll the group named `text` across to the operand (pixels, an integer; down to 0; `var` is not used) - dmview's `SCROLLTO` |
 | `SCROLL_Y` | Scroll the group named `text` down to the operand (pixels, an integer; across to 0; `var` is not used) - dmview's `SCROLLTO` |
 | `APPEND` | Text `var` += the operand's text |
 | `FORMAT` | Text `var` = `text` (one `%d` / `%x`, a width: `%02d`) with the operand (an integer) |
